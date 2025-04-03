@@ -1,90 +1,100 @@
 # main.py
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
 
 # ================================================
-# STEP 1: TRAININGSDATEN LADEN UND VORBEREITEN
+# STEP 1: DATEN LADEN UND VORBEREITEN
 # ================================================
-df_train = pd.read_csv("game_of_thrones_train.csv")
-df_train.columns = df_train.columns.str.strip()
+df = pd.read_csv("game_of_thrones_train.csv")
+df.columns = df.columns.str.strip()
 
-# 🔁 Fehlende culture-Werte füllen
-df_train["culture"] = df_train["culture"].fillna("unknown")
-df_train["house"] = df_train["house"].fillna("unknown")
+df["culture"] = df["culture"].fillna("unknown")
+df["house"] = df["house"].fillna("unknown")
 
-# Wichtige Features
 features = [
     "house", "culture", "male",
     "book1", "book2", "book3", "book4", "book5",
-    "popularity", "isNoble", "isMarried"
+    "isNoble", "isMarried"
 ]
 
-# Nur diese Spalten + Zielvariable behalten
-df_train = df_train[features + ["isAlive"]].dropna()
+df["name"] = df["name"]
+df["S.No"] = df["S.No"]
+names = df["name"]
+ids = df["S.No"]
 
-# One-Hot-Encoding für kategorische Merkmale
-df_train_encoded = pd.get_dummies(df_train, columns=["house", "culture"])
+# Drop Rows mit NaN in Features/Ziel
+df = df[["S.No", "name"] + features + ["isAlive"]].dropna()
 
-# Features und Zielvariable definieren
-X_train = df_train_encoded.drop("isAlive", axis=1)
-y_train = df_train_encoded["isAlive"]
+
+# One-Hot-Encoding ohne "name"
+df_encoded = pd.get_dummies(df.drop(["name", "S.No"], axis=1), columns=["house", "culture"])
+
+X = df_encoded.drop("isAlive", axis=1)
+y = df_encoded["isAlive"]
+
 
 # ================================================
-# STEP 2: MODELL TRAINIEREN
+# STEP 2: TRAIN/TEST SPLIT
+# ================================================
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ================================================
+# STEP 3: MODELL TRAINIEREN
 # ================================================
 print("\n=== Random Forest Training ===")
 rf = RandomForestClassifier(n_estimators=100, random_state=42)
 rf.fit(X_train, y_train)
 
 # ================================================
-# STEP 3: TESTDATEN LADEN UND VORBEREITEN
+# STEP 4: TESTDATEN BEWERTEN
 # ================================================
-df_test = pd.read_csv("game_of_thrones_test.csv")
-df_test.columns = df_test.columns.str.strip()
-df_test_original = df_test.copy()
-
-df_test["culture"] = df_test["culture"].fillna("unknown")
-df_test["house"] = df_test["house"].fillna("unknown")
-
-df_test = df_test[features].dropna()
-
-# One-Hot-Encoding für Testdaten
-df_test_encoded = pd.get_dummies(df_test, columns=["house", "culture"])
-
-# ⚠️ Sicherstellen, dass Testdaten die gleichen Spalten haben wie Training
-missing_cols = set(X_train.columns) - set(df_test_encoded.columns)
-for col in missing_cols:
-    df_test_encoded[col] = 0
-df_test_encoded = df_test_encoded[X_train.columns]
-
-X_test = df_test_encoded
-
-# ================================================
-# STEP 4: VORHERSAGE AUF TESTDATEN
-# ================================================
-y_pred_rf = rf.predict(X_test)
+y_pred = rf.predict(X_test)
 probs = rf.predict_proba(X_test)
 
-# Ergebnisse an Originaldaten anhängen
-df_test_original = df_test_original.loc[X_test.index].copy()
-df_test_original["predicted"] = y_pred_rf
-df_test_original["probability_death"] = probs[:, 0]
-df_test_original["probability_survival"] = probs[:, 1]
+print("\n=== Modellbewertung ===")
+print(confusion_matrix(y_test, y_pred))
+print(classification_report(y_test, y_pred))
+
+# STEP 5: ERGEBNIS-TABELLE SPEICHERN
+results = X_test.copy()
+results["actual"] = y_test
+results["predicted"] = y_pred
+results["probability_death"] = probs[:, 0]
+results["probability_survival"] = probs[:, 1]
+
+results["name"] = names.loc[X_test.index].values
+results["S.No"] = ids.loc[X_test.index].values
+
+# Optional: Reihenfolge anpassen
+results = results[["S.No", "name", "actual", "predicted", "probability_death", "probability_survival"] + list(X_test.columns)]
+
+# Export
+results.to_csv("got_model_results.csv", index=False)
+print("\n📁 Datei 'got_model_results.csv' wurde gespeichert.")
 
 # ================================================
-# STEP 5: EXPORT
+# STEP 7: FEATURE IMPORTANCE – VISUALISIERUNG
 # ================================================
-df_test_original.to_csv("got_test_predictions.csv", index=False)
-print("\n📁 Datei 'got_test_predictions.csv' wurde gespeichert.")
+importances = rf.feature_importances_
+feature_names = X.columns
 
-# ================================================
-# STEP 6: OPTIONAL – VORSCHAU
-# ================================================
-print("\n=== Vorhersagen (Testdaten) ===")
-if "name" in df_test_original.columns:
-    print(df_test_original[["name", "predicted", "probability_death", "probability_survival"]].head(10))
-else:
-    print(df_test_original[["predicted", "probability_death", "probability_survival"]].head(10))
+# Sortiert nach Wichtigkeit
+importance_df = pd.DataFrame({
+    "Feature": feature_names,
+    "Importance": importances
+}).sort_values("Importance", ascending=False)
+
+# Visualisierung als Säulendiagramm
+plt.figure(figsize=(10, 6))
+sns.barplot(data=importance_df.head(20), x="Importance", y="Feature")
+plt.title("🧠 Wichtigste Merkmale (Top 20)")
+plt.xlabel("Wichtigkeit")
+plt.ylabel("Merkmal")
+plt.tight_layout()
+plt.show()
