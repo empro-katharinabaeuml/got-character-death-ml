@@ -1,0 +1,54 @@
+Da der Code sich auf meinem Rechner so sehr zerschießt (einmal hat es funktioniert.....) hier einmal kurz im Markdown, ein Vorschlag was man für die Cmd Ausgabe noch hinzufügen kann
+
+
+# ================================================
+# STEP 8: INTERAKTIVE BENUTZEREINGABE IM TERMINAL
+# ================================================
+def predict_character_from_input():
+    """
+    Fragt den Benutzer nach Charaktereigenschaften und gibt die Sterbewahrscheinlichkeit aus.
+    """
+    print("\n Gib die Charaktereigenschaften ein:")
+
+    try:
+        new_character = {
+            'house': input("Haus (z.B. Stark, Lannister) oder leer lassen: ") or "unknown",
+            'culture': input("Kultur (z.B. Northmen, Valyrian) oder leer lassen: ") or "unknown",
+            'male': int(input("Geschlecht (1 = männlich, 0 = weiblich): ")),
+            'book1': int(input("Kommt in Buch 1 vor? (1 = ja, 0 = nein): ")),
+            'book2': int(input("Kommt in Buch 2 vor? (1 = ja, 0 = nein): ")),
+            'book3': int(input("Kommt in Buch 3 vor? (1 = ja, 0 = nein): ")),
+            'book4': int(input("Kommt in Buch 4 vor? (1 = ja, 0 = nein): ")),
+            'book5': int(input("Kommt in Buch 5 vor? (1 = ja, 0 = nein): ")),
+            'isNoble': int(input("Ist der Charakter adelig? (1 = ja, 0 = nein): ")),
+            'isMarried': int(input("Ist der Charakter verheiratet? (1 = ja, 0 = nein): "))
+        }
+
+        new_df = pd.DataFrame([new_character])
+
+        # One-Hot-Encoding wie im Trainingsset
+        new_encoded = pd.get_dummies(new_df, columns=["house", "culture"])
+
+        # Fehlende Spalten ergänzen
+        for col in X.columns:
+            if col not in new_encoded.columns:
+                new_encoded[col] = 0
+        new_encoded = new_encoded[X.columns]
+
+        # Vorhersage
+        prediction = rf.predict(new_encoded)[0]
+        prob = rf.predict_proba(new_encoded)[0]
+
+        print("\n📊 Vorhersage:")
+        print(f"→ Todeswahrscheinlichkeit:      {prob[0]*100:.2f}%")
+        print(f"→ Prognose: {'Überlebt' if prediction == 1 else 'Stirbt'}")
+
+    except ValueError:
+        print("❌ Ungültige Eingabe! Bitte nur Zahlen verwenden.")
+
+# ================================================
+# OPTIONAL: DIREKTE ABFRAGE
+# ================================================
+user_choice = input("\n🧪 Willst du eine neue Charakter-Vorhersage machen? (ja/nein): ").strip().lower()
+if user_choice == "ja":
+    predict_character_from_input()
