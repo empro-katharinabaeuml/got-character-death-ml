@@ -196,6 +196,19 @@ print(grid_search.best_score_)
 # Bestes Modell speichern
 rf = grid_search.best_estimator_
 
+# Modell und Feature-Namen als Pickle-Dateien speichern
+import pickle
+
+# Speichern des trainierten Modells
+with open("model.pkl", "wb") as f:
+    pickle.dump(rf, f)
+
+# Speichern der Feature-Spalten
+with open("feature_columns.pkl", "wb") as f:
+    pickle.dump(X.columns.tolist(), f)
+
+print("✅ Modell und Feature-Spalten wurden gespeichert.")
+
 # ================================================
 # STEP 5: TESTDATEN BEWERTEN
 # ================================================
