@@ -1,26 +1,28 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
-from imblearn.over_sampling import SMOTE
-import shap
+import pandas as pd #Tool zum Arbeiten mit Tabellen/Daten
+import matplotlib.pyplot as plt #Diagramme zeichnen
+import seaborn as sns #hübscheres Tool für Diagramme
+from sklearn.ensemble import RandomForestClassifier #Random-Forest-Modell holen
+from sklearn.model_selection import train_test_split #Teilt die Daten zufällig in Trainings- und Testdaten auf
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc #Werkzeuge zur Bewertung des Modells
+from imblearn.over_sampling import SMOTE #unausgewogene Klassen ausgleichen (z. B. zu viele Überlebende, zu wenige Tote
+import shap #Erklärbarkeit des Modells verbessern
 
 # ================================================
 # STEP 1: DATEN LADEN UND VORBEREITEN
 # ================================================
-df = pd.read_csv("public/dataset/got_merged_dataset.csv")
-df.columns = df.columns.str.strip()
+df = pd.read_csv("public/dataset/got_merged_dataset.csv") #CSV-Datei mit Daten in Tabelle namens df laden
+df.columns = df.columns.str.strip() #Entfernt überflüssige Leerzeichen aus den Spaltennamen
 
 # =============================
 # NEUE FEATURES HINZUFÜGEN
 # =============================
+# Fehlende Werte auffüllen
 df["culture"] = df["culture"].fillna("unknown")
 df["house"] = df["house"].fillna("unknown")
-df["age"] = df["age"].fillna(df["age"].median())
+df["age"] = df["age"].fillna(df["age"].median()) #Wenn age fehlt → der mittlere Wert (Median) aller bekannten Alter
 
 # Familie – ob überhaupt bekannt
+#Gibt 1, wenn Mutter/Vater/Erbe/Ehepartner bekannt ist, sonst 0.
 df["has_mother"] = df["mother"].notna().astype(int)
 df["has_father"] = df["father"].notna().astype(int)
 df["has_heir"] = df["heir"].notna().astype(int)
@@ -43,17 +45,23 @@ df["is_royalty"] = df["title"].fillna("").str.contains("King|Queen|Prince|Prince
 df["is_maester"] = df["title"].fillna("").str.contains("Maester", case=False).astype(int)
 
 # Bücher: Letztes Buch, in dem die Figur vorkommt
+#Zählt, in wie vielen Büchern die Figur vorkommt
 df["book_count"] = df[["book1", "book2", "book3", "book4", "book5"]].sum(axis=1)
+
+#Zählt, in wie vielen Büchern die Figur vorkommt
 df["in_all_books"] = (df["book_count"] == 5).astype(int)
 df["only_in_one_book"] = (df["book_count"] == 1).astype(int)
+
+#Sucht, in welchem Buch zuletzt die Figur vorkommt.
 df["last_book"] = df[["book1", "book2", "book3", "book4", "book5"]].apply(
     lambda row: max([i+1 for i, val in enumerate(row) if val == 1] or [0]), axis=1
 )
 
-# Kombination aus Adelig + verheiratet
+# Kombination aus Adelig + verheiratet; Gibt 1, wenn jemand adelig und verheiratet ist
 df["noble_and_married"] = ((df["isNoble"] == 1) & (df["isMarried"] == 1)).astype(int)
 
 # House gruppieren – sonst zu viele Dummies!
+#Nur die Top 10 Häuser bleiben, alle anderen → "Other"
 df["house_original"] = df["house"]  # <-- unbedingt vor dem Gruppieren sichern
 top_houses = df["house"].value_counts().nlargest(10).index
 df["house_grouped"] = df["house"].apply(lambda x: x if x in top_houses else "Other")
@@ -66,11 +74,6 @@ df["age_filled"] = df["age"].fillna(df["age"].median())
 df["has_dead_relatives"] = (df["numDeadRelations"] > 0).astype(int)
 df["many_dead_relatives"] = (df["numDeadRelations"] > df["numDeadRelations"].median()).astype(int)
 
-if "death_year" in df.columns:
-    df["is_dead"] = df["death_year"].notna().astype(int)
-else:
-    print("Spalte 'death_year' nicht vorhanden – Feature 'is_dead' wird übersprungen.")
-    df["is_dead"] = 0  # Dummywert, damit Featureliste weiter funktioniert
 
 if "book_intro_chapter" in df.columns:
     df["book_intro_chapter"] = df["book_intro_chapter"].fillna(0)
@@ -93,6 +96,7 @@ else:
 
 
 # Fallback für optionale Spalten, falls sie nicht existieren
+#Falls wichtige Spalten fehlen → auffüllen
 optional_zero_fields = [
     "book_of_death",
     "a_game_of_thrones",
@@ -110,141 +114,190 @@ for col in optional_zero_fields:
         df[col] = df[col].fillna(0)
 
 
+# ================================================
+# FEATURES DEFINIEREN 
+# ================================================
+#Auswahl der Spalten (= Features), die für das Modell genutzt werden
 features = [
-    "male", "book1", "book2", "book3", "book4", "book5",
-    "book_count", "in_all_books", "only_in_one_book", "last_book",
-    "isNoble", "isMarried", "noble_and_married",
-    "has_mother", "has_father", "has_heir", "has_spouse", "alive_family",
-    "is_knight", "is_royalty", "is_maester",
-    "has_age", "age_filled",
-    "numDeadRelations", "has_dead_relatives", "many_dead_relatives",
-    "house_grouped", "culture",
-    "is_dead", "introduced_late", "has_allegiances",
-    "book_of_death", "book_intro_chapter",
+    "title", "male", "culture", "house", "age",
+    "book1", "book2", "book3", "book4", "book5",
+    "isMarried", "isNoble", "numDeadRelations",
+    "allegiances",
     "a_game_of_thrones", "a_clash_of_kings", "a_storm_of_swords",
-    "a_feast_for_crows", "a_dance_with_dragons",
-    "allegiance_grouped" 
+    "a_feast_for_crows", "a_dance_with_dragons"
 ]
 
-
-# Nur Zeilen behalten, bei denen Zielwert nicht fehlt
-df = df[["S.No", "name"] + features + ["isAlive"]]
+#Nur Datensätze verwenden, bei denen das Ziel („isAlive“) bekannt ist 
 df = df[df["isAlive"].notna()]
 
-# One-Hot-Encoding
-df_encoded = pd.get_dummies(df.drop(["name", "S.No"], axis=1), columns=["house_grouped", "culture", "allegiance_grouped"])
-X = df_encoded.drop("isAlive", axis=1)
-y = df_encoded["isAlive"]
+# Drop von Leakage-Spalten (falls noch irgendwo vorhanden)
+df = df.drop(columns=[
+    "book_of_death", "death_year", "death_chapter", "is_dead",
+    "isAliveMother", "isAliveFather", "isAliveHeir", "isAliveSpouse",
+    "name_y"
+], errors="ignore")
 
-# Namen für spätere Zuordnung sichern
-names = df["name"]
-ids = df["S.No"]
+# Ziel- und Feature-Set extrahieren
+#Ziel- und Feature-Tabelle bauen
+df_model = df[["S.No", "name"] + features + ["isAlive"]].copy()
+
+# One-Hot-Encoding für kategoriale Felder
+df_model = pd.get_dummies(df_model, columns=["culture", "house", "allegiances", "title"], drop_first=True)
+
+# X und y definieren
+# X = alle Merkmale (ohne Seriennummer, Namen, Zielwert)
+# y = Zielwert, also isAlive (lebt oder tot)
+X = df_model.drop(columns=["S.No", "name", "isAlive"])
+y = df_model["isAlive"]
+
+# Namen und IDs speichern (für spätere Rückverknüpfung)
+names = df_model["name"]
+ids = df_model["S.No"]
 
 # ================================================
 # STEP 2: TRAIN/TEST SPLIT (mit Stratify!)
 # ================================================
+# Trainings- und Testdaten aufteilen
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42
 )
+
+# NaN-Check (Sicherheitskontrolle); Prüft nochmal, ob irgendwo noch fehlende Werte (NaN) drin sind
 print("\n NaN-Check:")
 print(X.isnull().sum()[X.isnull().sum() > 0])
 
 # ================================================
 # STEP 3: OVERSAMPLING MIT SMOTE
 # ================================================
+# Zeigt, wie viele Figuren in den Trainingsdaten leben oder tot sind.
 print("\n=== Klassenverteilung vor SMOTE ===")
 print(y_train.value_counts())
 
+#erstellt künstliche Datenpunkte für die unterrepräsentierte Klasse (hier: „tot“), Ziel: ausgewogenes Verhältnis (Balanced Classes)
 sm = SMOTE(random_state=42)
 X_train_res, y_train_res = sm.fit_resample(X_train, y_train)
 
+# Zeigt, ob das Verhältnis jetzt ausgeglichen ist
 print("\n=== Klassenverteilung nach SMOTE ===")
 print(pd.Series(y_train_res).value_counts())
 
 # ================================================
 # STEP 4: GRIDSEARCH – BESTES MODELL FINDEN
 # ================================================
+# Tool, um verschiedene Modelleinstellungen systematisch zu testen
 from sklearn.model_selection import GridSearchCV
 
 print("\n Starte GridSearchCV zur Modelloptimierung ...")
 
+# Parameter-Raster definieren
 param_grid = {
-    "n_estimators": [100, 200],
-    "max_depth": [None, 10, 20],
-    "min_samples_split": [2, 5],
-    "min_samples_leaf": [1, 2],
-    "max_features": ["sqrt", "log2"]
+    "n_estimators": [100, 200], #Anzahl der Bäume im Wald
+    "max_depth": [None, 10, 20], #maximale Tiefe eines Baumes
+    "min_samples_split": [2, 5], #wie viele Datenpunkte mindestens nötig sind, um einen Knoten zu teilen
+    "min_samples_leaf": [1, 2], #wie viele Datenpunkte ein Blatt mindestens haben muss
+    "max_features": ["sqrt", "log2"] # wie viele Features jeder Baum bei einer Entscheidung in Betracht zieht
 }
 
 grid_search = GridSearchCV(
-    estimator=RandomForestClassifier(class_weight="balanced", random_state=42),
-    param_grid=param_grid,
-    scoring="roc_auc",
-    cv=5,
-    verbose=1,
-    n_jobs=-1
+    estimator=RandomForestClassifier(class_weight="balanced", random_state=42), #das Modell, das optimiert wird (RandomForest)
+    param_grid=param_grid, #gleicht Klassenunterschiede aus (Gewichte automatisch setzen)
+    scoring="roc_auc", # bewertet die Modelle nach dem AUC-Wert (siehe ROC-Kurve später)
+    cv=5, #5-fache Kreuzvalidierung (trainiert 5x mit verschiedenen Splits)
+    verbose=1, # zeigt Fortschritt beim Testen
+    n_jobs=-1 #nutzt alle CPU-Kerne parallel
 )
 
+# Probiert alle Parameterkombis durch und merkt sich das beste Modell
 grid_search.fit(X_train_res, y_train_res)
+
+# Bestes Ergebnis anzeigen: beste Parametereinstellung, 
+# Den AUC-Score für diese Einstellung, fertige, trainierte Modell rf (RandomForest mit besten Parametern)
+rf = grid_search.best_estimator_
 
 print("\n Beste Parameterkombination:")
 print(grid_search.best_params_)
-
 print("\n Beste AUC-Score:")
 print(grid_search.best_score_)
 
-# Bestes Modell speichern
-rf = grid_search.best_estimator_
 
-# Modell und Feature-Namen als Pickle-Dateien speichern
+# Modell und Feature-Spalten speichern
 import pickle
 
-# Speichern des trainierten Modells
 with open("model.pkl", "wb") as f:
     pickle.dump(rf, f)
 
-# Speichern der Feature-Spalten
 with open("feature_columns.pkl", "wb") as f:
     pickle.dump(X.columns.tolist(), f)
+# Speichert das Modell und die verwendeten Features als .pkl (Pickle-Datei) 
 
 print("✅ Modell und Feature-Spalten wurden gespeichert.")
 
 # ================================================
-# STEP 5: TESTDATEN BEWERTEN
+# STEP 5: TESTDATEN BEWERTEN – MIT SCHWELLEN-ANPASSUNG
 # ================================================
-y_pred = rf.predict(X_test)
+# Wahrscheinlichkeiten für die Testdaten berechnen
 probs = rf.predict_proba(X_test)
 
-print("\n=== Modellbewertung ===")
+# Schwelle setzen, ab wann jemand als "lebendig" gilt
+threshold = 0.65
+y_pred = (probs[:, 1] > threshold).astype(int)
+
+print(f"\nBewertung mit Schwelle = {threshold}")
 print(confusion_matrix(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
+# Beste Schwelle automatisch suchen (für Klasse "tot")
+from sklearn.metrics import f1_score
+import numpy as np
+
+best_thresh = 0.5
+best_f1 = 0
+
+for thresh in np.arange(0.4, 0.8, 0.01):
+    preds = (probs[:, 1] > thresh).astype(int)
+    f1 = f1_score(y_test, preds, pos_label=0)
+    if f1 > best_f1:
+        best_f1 = f1
+        best_thresh = thresh
+
+print(f"🔎 Beste Schwelle für Klasse 'tot': {best_thresh:.2f} mit F1-Score {best_f1:.3f}")
 
 # ================================================
 # STEP 6: ERGEBNIS-TABELLE SPEICHERN
 # ================================================
-results = X_test.copy()
-results["actual"] = y_test
-results["predicted"] = y_pred
-results["probability_death"] = probs[:, 0]
-results["probability_survival"] = probs[:, 1]
+results = X_test.copy() #Test-Ergebnisse in eine Tabelle schreiben
+
+# Tatsächliche und vorhergesagte Werte einfügen
+results["actual"] = y_test # Der wahre Zustand (lebt/tot)
+results["predicted"] = y_pred # Was das Modell vorausgesagt hat
+
+# Wahrscheinlichkeiten ergänzen
+results["probability_death"] = probs[:, 0] #Wahrscheinlichkeit zu sterben
+results["probability_survival"] = probs[:, 1] # Wahrscheinlichkeit zu überleben
+
+# Namen & Seriennummer wieder zuordnen
 results["name"] = names.loc[X_test.index].values
 results["S.No"] = ids.loc[X_test.index].values
-results = results[["S.No", "name", "actual", "predicted", "probability_death", "probability_survival"] + list(X_test.columns)]
 
-results.to_csv("public/dataset/got_model_results.csv", index=False)
-print("\n Datei 'public/dataset/got_model_results.csv' wurde gespeichert.")
+#In eine CSV speichern
+results.to_csv("public/dataset/got_model_results_clean.csv", index=False)
+
+print("📄 Ergebnisse gespeichert in 'got_model_results_clean.csv'")
 
 # ================================================
 # STEP 7: FEATURE IMPORTANCE VISUALISIERUNG
 # ================================================
+# Wichtigkeiten der Merkmale berechnen
 importances = rf.feature_importances_
-feature_names = X.columns
+feature_names = X.columns # gibt eine Liste von Zahlen, die zeigen: Wie wichtig jedes Feature für die Entscheidung im Random Forest war
 
+# In DataFrame umwandeln + sortieren
 importance_df = pd.DataFrame({
     "Feature": feature_names,
     "Importance": importances
 }).sort_values("Importance", ascending=False)
 
+# Visualisieren – die Top 20 Features
 plt.figure(figsize=(10, 6))
 sns.barplot(data=importance_df.head(20), x="Importance", y="Feature")
 plt.title("Wichtigste Merkmale (Top 20)")
@@ -253,10 +306,13 @@ plt.ylabel("Merkmal")
 plt.tight_layout()
 plt.show()
 
+
 # ================================================
 # STEP 8: CONFUSION MATRIX HEATMAP
 # ================================================
-cm = confusion_matrix(y_test, y_pred)
+cm = confusion_matrix(y_test, y_pred) # eine 2×2-Matrix
+
+# Heatmap anzeigen
 sns.heatmap(cm, annot=True, fmt='d', cmap="Blues", xticklabels=["Tot", "Lebt"], yticklabels=["Tot", "Lebt"])
 plt.xlabel("Vorhergesagt")
 plt.ylabel("Tatsächlich")
@@ -267,9 +323,11 @@ plt.show()
 # ================================================
 # STEP 9: ROC-KURVE
 # ================================================
+# ROC-Daten berechnen
 fpr, tpr, _ = roc_curve(y_test, probs[:, 1])
 roc_auc = auc(fpr, tpr)
 
+# ROC-Kurve zeichnen
 plt.figure(figsize=(6, 6))
 plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
 plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
@@ -279,3 +337,19 @@ plt.title("ROC-Kurve – Modellbewertung")
 plt.legend(loc="lower right")
 plt.tight_layout()
 plt.show()
+
+from sklearn.decomposition import PCA # Hauptkomponentenanalyse – reduziert die Daten auf wenige Achsen 
+from sklearn.cluster import KMeans # Clustering-Methode – gruppiert ähnliche Objekte automatisch
+
+# Datenreduktion auf 2D für die Visualisierung
+X_pca = PCA(n_components=2).fit_transform(X)
+
+# Figuren gruppieren mit KMeans
+kmeans = KMeans(n_clusters=3).fit(X)
+
+# Zeichnet ein Punktdiagramm
+plt.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_, cmap="Set2")
+plt.title("Charaktertypen (Cluster)")
+plt.tight_layout()
+plt.show()
+
