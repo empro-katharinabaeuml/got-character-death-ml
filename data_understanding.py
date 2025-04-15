@@ -9,7 +9,7 @@ import seaborn as sns
 df = pd.read_csv("game_of_thrones_train.csv")
 df.columns = df.columns.str.strip()  # entfernt Leerzeichen aus Spaltennamen
 
-print("\n🔍 ERSTE BLICKE AUF DIE DATEN:")
+print("\n ERSTE BLICKE AUF DIE DATEN:")
 print(df.head())
 
 # ---------------------------
@@ -21,13 +21,13 @@ print(df.info())
 # ---------------------------
 # 3. Statistische Beschreibung
 # ---------------------------
-print("\n📊 STATISTISCHE ÜBERSICHT (nur numerisch):")
+print("\n STATISTISCHE ÜBERSICHT (nur numerisch):")
 print(df.describe())
 
 # ---------------------------
 # 4. Fehlende Werte auflisten
 # ---------------------------
-print("\n⚠️ FEHLENDE WERTE JE SPALTE:")
+print("\n FEHLENDE WERTE JE SPALTE:")
 print(df.isna().sum().sort_values(ascending=False))
 
 # ---------------------------
@@ -52,7 +52,7 @@ if "age" in df.columns:
     plt.ylabel("Anzahl")
     plt.show()
 else:
-    print("⚠️ Keine 'age'-Spalte gefunden.")
+    print(" Keine 'age'-Spalte gefunden.")
 
 # ---------------------------
 # 7. Beliebtheit vs. Überleben (optional)

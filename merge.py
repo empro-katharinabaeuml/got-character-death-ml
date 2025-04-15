@@ -1,8 +1,8 @@
 import pandas as pd
 
 # CSV-Dateien laden
-df_main = pd.read_csv("game_of_thrones_train.csv")
-df_extra = pd.read_csv("game_of_thrones_character_deaths.csv")
+df_main = pd.read_csv("public/dataset/game_of_thrones_train.csv")
+df_extra = pd.read_csv("public/dataset/game_of_thrones_character_deaths.csv")
 
 # Spaltennamen säubern (optional, aber empfohlen)
 df_main.columns = df_main.columns.str.strip()
