@@ -1,27 +1,29 @@
-# Game of Thrones Character Survival Prediction
+# Game of Thrones – Survival Prediction
 
-Ein Machine-Learning-Projekt, das vorhersagt, ob ein Charakter aus _Game of Thrones_ lebt oder gestorben ist – basierend auf biografischen Informationen, Buchauftritten und Todesdaten. Ziel ist ein interpretierbares Modell mit hoher Vorhersagekraft.
+Ein Machine-Learning-Projekt zur Vorhersage, ob ein Charakter aus _Game of Thrones_ überlebt oder stirbt – basierend auf biografischen Merkmalen, Buchauftritten und kontextuellen Features. Ziel ist ein interpretierbares, robustes Klassifikationsmodell.
 
-## Projektübersicht
+---
 
-Dieses Projekt besteht aus zwei Teilen:
+## Projektüberblick
 
-### 1. `merge.py`
+Das Projekt besteht aus drei Teilen:
 
-Führt zwei CSV-Dateien zu einem erweiterten Datensatz zusammen:
+### 1. `merge.py` – Datensatz erweitern
 
-- `game_of_thrones_train.csv`: Basisdaten zu Charakteren
-- `game_of_thrones_character_deaths.csv`: Zusätzliche Features wie Todesjahr, Buch des Todes etc.
+Führt zwei CSV-Dateien zu einem umfangreicheren Datensatz zusammen:
 
-Ergebnis: `got_merged_dataset.csv` mit deutlich mehr relevanten Spalten für die ML-Vorhersage.
+- `game_of_thrones_train.csv` – Basisinformationen zu Charakteren
+- `game_of_thrones_character_deaths.csv` – zusätzliche Todesdaten
+
+Ergebnis: `got_merged_dataset.csv` mit erweiterten Features.
 
 ```bash
 python3 merge.py
 ```
 
-### 2. `main.py`
+### 2. `main.py` – Modelltraining & Analyse
 
-Trainiert ein Random Forest Modell zur Vorhersage von `isAlive` (lebt der Charakter?) und bewertet es.
+Trainiert ein Random-Forest-Modell zur Vorhersage der Zielvariable isAlive und analysiert die Ergebnisse inkl. Visualisierungen.
 
 ```bash
 python3 main.py
@@ -29,25 +31,27 @@ python3 main.py
 
 ## Voraussetzungen
 
-Installiere die notwendigen Libraries:
+Installiere die benötigten Python-Bibliotheken:
 
 ```bash
 pip install pandas scikit-learn matplotlib seaborn imbalanced-learn shap
 ```
 
-## Feature Engineering (Ausschnitt)
+## Feature Engineering (Auswahl)
 
-- Anzahl lebender Familienmitglieder (`alive_family`)
-- Auftrittsanzahl in den 5 Büchern
-- Titel-Kennzeichen (z. B. `is_knight`, `is_royalty`)
-- Alter, Haus, Kultur (mit Gruppierung seltener Werte)
-- Todesinformationen (`is_dead`, `book_of_death`)
+- Lebende Angehörige (`alive_family`)
+- Buchauftritte (`book1` bis `book5`)
+- Titelmerkmale (`is_knight`, `is_royalty`, `is_maester`)
+- Gruppierte Kategorien (`house_grouped`, `allegiance_grouped`)
+- Zeitpunkt des ersten Auftritts (`introduced_late`)
+- Historie toter Verwandter (`has_dead_relatives`, `many_dead_relatives`)
 
 ## Modell & Bewertung
 
-- **Modell**: RandomForestClassifier mit GridSearchCV und AUC als Metrik
-- **Datenungleichgewicht** wird mit **SMOTE** ausgeglichen
-- **Bewertung** mit Confusion Matrix, ROC-Kurve, Klassifikationsbericht, SHAP-Analyse
+- **Modell**: `RandomForestClassifier` mit Hyperparameter-Optimierung via `GridSearchCV`
+- **Datenungleichgewicht**: ausgeglichen mit SMOTE
+- **Metrik**: ROC-AUC
+- **Bewertung**: Confusion Matrix, Klassifikationsbericht, ROC-Kurve, SHAP-Analyse
 
 ### Beispielausgabe:
 
@@ -59,39 +63,67 @@ Beste AUC-Score:
 0.975
 ```
 
-### Confusion Matrix:
+## Ergebnis-Visualisierungen
 
+### Wichtigste Merkmale
+
+Am Anfang werden die wichtigsten Merkmale visualisiert, die das Modell für Entscheidungen verwendet hat.
+![Features](public/pictures/Figure_1.png)
+
+### ROC-Kurve
+
+![ROC-Kurve](public/pictures/Figure_1.3.png)
+
+### Confusion Matrix
+
+![Confusion](public/pictures/Figure_1.2.png)
+
+### Charaktertypen
+
+![Carakter](public/pictures/Figure_1.4.png)
+
+### Ausgabe-Dateien
+
+Nach dem Training wird eine CSV gespeichert:
+
+```bash
+got_model_results_clean.csv
 ```
-[[ 49  20]
- [ 20 223]]
+
+Diese enthält:
+
+- Name & ID des Charakters
+- Wahrscheinlichkeiten für Leben/Tod
+- Vorhersage & tatsächlicher Zustand
+
+### 3. `got_predictor_app.py` – Interaktive Vorhersage-App (Streamlit)
+
+Mit dieser App kannst du deinen eigenen Game-of-Thrones-Charakter zusammenstellen und vorhersagen lassen, ob er überlebt.
+
+Die Web-App basiert auf Streamlit und verwendet das zuvor trainierte Modell (`model.pkl` + `feature_columns.pkl`).
+
+Start per Terminal:
+
+```bash
+streamlit run got_predictor_app.py
 ```
 
-## Ergebnisse
+#### Features:
 
-Das Modell erreicht eine sehr gute **AUC von ~0.93**, was auf eine fast perfekte Trennung zwischen lebenden und toten Charakteren hinweist.
+- Eingabe von Geschlecht, Alter, Haus, Kultur, Titel etc.
+- Automatische One-Hot-Kodierung
+- Modell-Vorhersage + Wahrscheinlichkeiten
 
-![ROC-Kurve](public/pictures/Figure_2.2.png)
+**Beispielansicht**:
 
-### Confusion Matrix:
+Voraussetzungen (zusätzlich zu den ML-Bibliotheken):
 
-Zusätzlich wird eine Datei `got_model_results.csv` mit allen Vorhersagen und Wahrscheinlichkeiten gespeichert.
-
-## Struktur
-
-```
-.
-├── merge.py                  # Daten zusammenführen
-├── main.py                   # ML-Modell trainieren + bewerten
-├── got_model_results.csv     # Ausgabe der Vorhersagen
-├── got_merged_dataset.csv    # Erweiterter Datensatz
-├── game_of_thrones_train.csv
+```bash
+pip install streamlit
 ```
 
-## SHAP Explainability
+Die App ist bewusst so gestaltet, dass sie robust auch bei nicht vorhandenen Features funktioniert („safe one-hot encoding“) und keine Data-Leakage-Infos verwendet.
 
-Am Ende wird mit **SHAP** die Feature-Wichtigkeit visualisiert, um zu verstehen, welche Merkmale den größten Einfluss auf die Vorhersage haben.
-
-## Hinweise
-
-- Falls bestimmte Spalten fehlen, werden sie im Skript abgefangen und mit Dummywerten ersetzt.
-- Unicode-Warnungen „Glyph missing from font“ kannst du ignorieren – betrifft nur Emojis in Plots.
+Fehlen bestimmte Spalten, werden sie automatisch durch neutrale Werte ersetzt.
+Warnungen wie „Glyph missing from font“ können ignoriert werden – sie betreffen nur Emojis in Plots.
+Dieses Projekt nutzt ausschließlich Informationen, die vor dem Tod der Figuren realistisch verfügbar wären (kein Data Leakage).
