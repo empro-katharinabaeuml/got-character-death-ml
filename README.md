@@ -68,19 +68,15 @@ Beste AUC-Score:
 ### Wichtigste Merkmale
 
 Am Anfang werden die wichtigsten Merkmale visualisiert, die das Modell für Entscheidungen verwendet hat.
-![Features](public/pictures/Figure_1.png)
+![Features](public/pictures/feature_importance.png)
 
 ### ROC-Kurve
 
-![ROC-Kurve](public/pictures/Figure_1.3.png)
+![ROC-Kurve](public/pictures/roc.png)
 
 ### Confusion Matrix
 
-![Confusion](public/pictures/Figure_1.2.png)
-
-### Charaktertypen
-
-![Carakter](public/pictures/Figure_1.4.png)
+![Confusion](public/pictures/heatmap.png)
 
 ### Ausgabe-Dateien
 
@@ -96,11 +92,14 @@ Diese enthält:
 - Wahrscheinlichkeiten für Leben/Tod
 - Vorhersage & tatsächlicher Zustand
 
-### 3. `got_predictor_app.py` – Interaktive Vorhersage-App (Streamlit)
+### 3. `app.py` – Interaktive Vorhersage-App (Streamlit)
 
-Mit dieser App kannst du deinen eigenen Game-of-Thrones-Charakter zusammenstellen und vorhersagen lassen, ob er überlebt.
+Ein vollständiges Streamlit-Dashboard mit:
 
-Die Web-App basiert auf Streamlit und verwendet das zuvor trainierte Modell (`model.pkl` + `feature_columns.pkl`).
+- Galerie aller wichtigen Visualisierungen
+- Navigation via Sidebar oder Bildklick
+- Modell-Vorhersage mit interaktiver Eingabe
+- Feature-Analyse und Kontext-Interpretationen
 
 Start per Terminal:
 
@@ -108,11 +107,19 @@ Start per Terminal:
 streamlit run got_predictor_app.py
 ```
 
+**Voraussetzungen:**
+
+```bash
+pip install pandas scikit-learn matplotlib seaborn imbalanced-learn shap streamlit
+```
+
 #### Features:
 
-- Eingabe von Geschlecht, Alter, Haus, Kultur, Titel etc.
-- Automatische One-Hot-Kodierung
-- Modell-Vorhersage + Wahrscheinlichkeiten
+- Visualisierungs-Galerie mit erklärenden Texten
+- AutomCharakter-Vorhersage (per Dropdowns/Slider)
+- Interaktive Feature-Wichtigkeit und PDP
+- Klassenverteilung, ROC, Confusion Matrix
+- Kumulative Wichtigkeit & Clustering-Visualisierungen
 
 **Beispielansicht**:
 
