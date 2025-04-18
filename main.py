@@ -449,7 +449,7 @@ X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
 plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y, cmap="coolwarm", alpha=0.7)
 plt.title("t-SNE Visualisierung: Tot vs. Lebendig")
 plt.tight_layout()
-save_plot("visualisierung_tot_lebendig.png")
+save_plot("tsne_survival.png")
 
 plt.show()
 
@@ -513,7 +513,7 @@ plt.title("Überleben pro Haus")
 plt.xlabel("Haus")
 plt.ylabel("Anteil überlebt")
 plt.tight_layout()
-save_plot("ueberleben_nach_haus.png")
+save_plot("survival_by_house.png")
 
 plt.show()
 
@@ -521,7 +521,7 @@ plt.show()
 sns.boxplot(x="isAlive", y="book_intro_chapter", data=df)
 plt.title("Einführungskapitel vs. Überleben")
 plt.tight_layout()
-save_plot("bucheinfuehrung.png")
+save_plot("intro_chapter_vs_survival.png")
 
 plt.show()
 
