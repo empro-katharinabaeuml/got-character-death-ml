@@ -6,7 +6,7 @@ import seaborn as sns
 # ---------------------------
 # 1. CSV laden & Spalten säubern
 # ---------------------------
-df = pd.read_csv("game_of_thrones_train.csv")
+df = pd.read_csv("public/dataset/got_merged_dataset.csv")
 df.columns = df.columns.str.strip()  # entfernt Leerzeichen aus Spaltennamen
 
 print("\n ERSTE BLICKE AUF DIE DATEN:")
