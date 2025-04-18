@@ -113,17 +113,27 @@ streamlit run got_predictor_app.py
 pip install pandas scikit-learn matplotlib seaborn imbalanced-learn shap streamlit
 ```
 
-#### Features:
+#### Visualisierungen & Interpretation:
 
-- Visualisierungs-Galerie mit erklärenden Texten
-- AutomCharakter-Vorhersage (per Dropdowns/Slider)
-- Interaktive Feature-Wichtigkeit und PDP
-- Klassenverteilung, ROC, Confusion Matrix
-- Kumulative Wichtigkeit & Clustering-Visualisierungen
+Das Dashboard enthält mehr als 15 Visualisierungen, die helfen, das Modell zu verstehen und kritisch einzuordnen:
 
-**Beispielansicht**:
+##### Übersicht
 
-Voraussetzungen (zusätzlich zu den ML-Bibliotheken):
+| Thema                                                | Beschreibung                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| Feature Importance                                   | Welche Merkmale beeinflussen die Vorhersage am stärksten?        |
+| Confusion Matrix                                     | Wie oft liegt das Modell richtig oder falsch?                    |
+| ROC-Kurve                                            | Wie trennscharf ist das Modell über verschiedene Schwellenwerte? |
+| Überlebenswahrscheinlichkeiten                       | Wie sicher ist sich das Modell bei seinen Prognosen?             |
+| PDP (Partial Dependence Plot)                        | Wie wirkt sich ein einzelnes Merkmal auf die Vorhersage aus?     |
+| Kumulative Feature-Wichtigkeit                       | Wie viel erklären die wichtigsten Features allein?               |
+| Clusteranalyse                                       | Gibt es typische Figurengruppen im Merkmalsraum?                 |
+| t-SNE: Tot vs. Lebendig                              | Liegen Lebende und Tote im Merkmalsraum sichtbar getrennt?       |
+| Überleben nach Haus, Geschlecht, Alter, Adel, Heirat | Explorative Einblicke in mögliche Muster und Verzerrungen        |
+| Einführungskapitel vs. Überleben                     | Wird ein Charakter später eingeführt, überlebt er länger?        |
+| Korrelationen zwischen Features                      | Gibt es redundante oder stark abhängige Merkmale?                |
+
+**Voraussetzungen** (zusätzlich zu den ML-Bibliotheken):
 
 ```bash
 pip install streamlit
