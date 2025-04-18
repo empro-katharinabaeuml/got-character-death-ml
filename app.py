@@ -53,6 +53,45 @@ title_to_slug = {v: k for k, v in slug_to_title.items()}
 st.set_page_config(page_title="GoT Dashboard", layout="wide")
 st.title("Game of Thrones Modell-Dashboard")
 
+st.markdown("""
+<style>
+.card {
+    background-color: #1e1e1e;
+    border-radius: 15px;
+    padding: 1rem;
+    height: 350px;            
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;  
+    margin-bottom: 0.5rem;
+}
+
+.card img {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.card .card-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.card-title {
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
+.card-caption {
+    font-size: 0.9rem;
+    color: #aaa;
+    flex-grow: 1;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # === Hilfsfunktionen ===
 def show_saved_image(filename, width=None):
     filepath = os.path.join("public/pictures", filename)
@@ -68,6 +107,16 @@ def load_model_and_features():
         features = pickle.load(f)
     return model, features
 
+import base64
+
+def get_image_base64(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode("utf-8")
+    except:
+        return None
+
 # === Modell & Features global laden ===
 model, feature_names = load_model_and_features()
 
@@ -78,12 +127,35 @@ current_page = query_params.get("page", None)
 
 if current_page is None:
     st.subheader("Übersicht aller Modell-Visualisierungen")
+    st.markdown("### Visualisierungsgalerie")
+    
     cols = st.columns(3)
+
     for i, (title, (img, desc)) in enumerate(image_pages.items()):
-        slug = title_to_slug[title]
-        with cols[i % 3]:
-            st.image(os.path.join("public/pictures", img), caption=title, use_container_width=True)
-            st.markdown(f"[Details ansehen](?page={slug})")
+        slug = title_to_slug.get(title, None)
+        if slug:
+            with cols[i % 3]:
+                img_path = os.path.join("public/pictures", img)
+                img_data = get_image_base64(img_path)
+
+                if img_data:
+                    img_html = f'<img src="data:image/png;base64,{img_data}" alt="{title}"/>'
+                else:
+                    img_html = '<div style="height:200px; background:#333; color:white; display:flex; align-items:center; justify-content:center;">Bild fehlt</div>'
+
+                st.markdown(f"""
+                <div class="card">
+                    {img_html}
+                    <div class="card-title">{title}</div>
+                    <div class="card-caption">{desc}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button("Details ansehen", key=f"button_{i}"):
+                    st.query_params.update({"page": slug})
+                    st.rerun()
+
+
 
 elif current_page == "vorhersage":
     st.subheader("Überlebenschance deines Charakters")
