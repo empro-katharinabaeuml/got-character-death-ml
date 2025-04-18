@@ -268,7 +268,7 @@ for thresh in np.arange(0.4, 0.8, 0.01):
         best_f1 = f1
         best_thresh = thresh
 
-print(f"Beste Schwelle für Klasse 'tot': {best_thresh:.2f} mit F1-Score {best_f1:.3f}")
+print(f"🔎 Beste Schwelle für Klasse 'tot': {best_thresh:.2f} mit F1-Score {best_f1:.3f}")
 
 # ================================================
 # STEP 6: ERGEBNIS-TABELLE SPEICHERN
@@ -314,6 +314,9 @@ plt.ylabel("Merkmal")
 plt.tight_layout()
 save_plot("feature_importance.png")  # Speicherung in public/pictures
 
+plt.show()  # Anzeige im Notebook/Fenster
+
+
 # ================================================
 # STEP 8: CONFUSION MATRIX HEATMAP: Wie oft lag Modell richtig/falsch?
 # ================================================
@@ -327,6 +330,7 @@ plt.title("Confusion Matrix als Heatmap")
 plt.tight_layout()
 save_plot("heatmap.png")
 
+plt.show()
 
 # ROC-Daten berechnen
 fpr, tpr, _ = roc_curve(y_test, probs[:, 1])
@@ -343,6 +347,8 @@ plt.legend(loc="lower right")
 plt.tight_layout()
 save_plot("roc.png")
 
+plt.show()
+
 from sklearn.decomposition import PCA # Hauptkomponentenanalyse – reduziert die Daten auf wenige Achsen 
 from sklearn.cluster import KMeans # Clustering-Methode – gruppiert ähnliche Objekte automatisch
 
@@ -357,6 +363,10 @@ plt.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_, cmap="Set2")
 plt.title("Charaktertypen (Cluster)")
 plt.tight_layout()
 save_plot("cluster.png")
+
+plt.show()
+
+
 
 # ================================================
 # STEP 9: DECISION TREE: Wie trifft das Modell Entscheidungen? 
@@ -381,6 +391,8 @@ plt.title("Beispielbaum aus dem Random Forest")
 plt.tight_layout()
 save_plot("random_forest1.png")
 
+plt.show()
+
 
 # Feature-Korrelationen
 plt.figure(figsize=(12, 10))
@@ -388,6 +400,8 @@ sns.heatmap(X.corr(), cmap="coolwarm", center=0)
 plt.title("Korrelation zwischen Features")
 plt.tight_layout()
 save_plot("feature-korrelationen.png")
+
+plt.show()
 
 
 importance_df["cumulative"] = importance_df["Importance"].cumsum()
@@ -399,11 +413,15 @@ plt.grid(True)
 plt.tight_layout()
 save_plot("kumulative-feature-wichtigkeit.png")
 
+plt.show()
+
 
 from sklearn.inspection import PartialDependenceDisplay
 PartialDependenceDisplay.from_estimator(rf, X, ["age", "numDeadRelations"])
 plt.tight_layout()
 save_plot("partial_dependence.png")
+
+plt.show()
 
 
 for i in range(3):
@@ -413,6 +431,9 @@ for i in range(3):
     plt.tight_layout()
     save_plot("tree1.png")
 
+    plt.show()
+
+
 sns.histplot(probs[:, 1], bins=30, kde=True)
 plt.title("Verteilung der Überlebenswahrscheinlichkeiten")
 plt.xlabel("Überlebenswahrscheinlichkeit")
@@ -420,12 +441,17 @@ plt.ylabel("Anzahl Figuren")
 plt.tight_layout()
 save_plot("survival_probability_hist.png")
 
+plt.show()
+
+
 from sklearn.manifold import TSNE
 X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
 plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y, cmap="coolwarm", alpha=0.7)
 plt.title("t-SNE Visualisierung: Tot vs. Lebendig")
 plt.tight_layout()
 save_plot("visualisierung_tot_lebendig.png")
+
+plt.show()
 
 # Klassenverteilung visualisieren; wie viele leben/tot? Dataset unausgewogen?
 sns.countplot(x=y)
@@ -435,6 +461,8 @@ plt.ylabel("Anzahl Charaktere")
 plt.tight_layout()
 save_plot("klassenverteilung.png")
 
+plt.show()
+
 # Überlebensrate nach Merkmal: Überleben Männer eher als Frauen? Adelige eher als Nicht-Adelige?
 sns.barplot(x="male", y="isAlive", data=df)
 plt.title("Überlebensrate nach Geschlecht")
@@ -442,11 +470,16 @@ plt.ylabel("Anteil lebendig")
 plt.tight_layout()
 save_plot("survival_by_gender.png")
 
+plt.show()
+
+
 sns.barplot(x="isNoble", y="isAlive", data=df)
 plt.title("Überlebensrate nach Adelig")
 plt.ylabel("Anteil adelig")
 plt.tight_layout()
 save_plot("survival_by_nobility.png")
+
+plt.show()
 
 sns.barplot(x="isMarried", y="isAlive", data=df)
 plt.title("Überlebensrate nach Heirat")
@@ -454,17 +487,23 @@ plt.ylabel("Anteil verheiratet")
 plt.tight_layout()
 save_plot("survival_by_isMarried.png")
 
+plt.show()
+
 sns.barplot(x="has_dead_relatives", y="isAlive", data=df)
 plt.title("Überlebensrate nach Geschlecht")
 plt.ylabel("Anteil hat tote Verwandte")
 plt.tight_layout()
 save_plot("survival_has_dead_relatives.png")
 
+plt.show()
+
 # Überleben nach Alter: Gibt es eine Altersgruppe, die häufiger stirbt?
 sns.histplot(data=df, x="age", hue="isAlive", bins=30, kde=True, multiple="stack")
 plt.title("Alter vs. Überlebenswahrscheinlichkeit")
 plt.tight_layout()
 save_plot("survival_by_age.png")
+
+plt.show()
 
 # Überleben nach Haus (nur Top-Häuser): Gibt es Häuser, bei denen viele sterben?
 top_houses = df["house_grouped"].value_counts().nlargest(6).index
@@ -476,8 +515,14 @@ plt.ylabel("Anteil überlebt")
 plt.tight_layout()
 save_plot("ueberleben_nach_haus.png")
 
+plt.show()
+
 # Buch-Einführung vs. Überleben: Wer spät eingeführt wurde – stirbt er eher?
 sns.boxplot(x="isAlive", y="book_intro_chapter", data=df)
 plt.title("Einführungskapitel vs. Überleben")
 plt.tight_layout()
 save_plot("bucheinfuehrung.png")
+
+plt.show()
+
+
