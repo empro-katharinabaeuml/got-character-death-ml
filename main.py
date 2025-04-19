@@ -13,7 +13,7 @@ def save_plot(filename):
     os.makedirs(folder, exist_ok=True)  # Ordner anlegen, falls nicht vorhanden
     filepath = os.path.join(folder, filename)
     plt.savefig(filepath, bbox_inches='tight')
-    print(f"✅ Plot gespeichert unter: {filepath}")
+    print(f"Plot gespeichert unter: {filepath}")
 
 # ================================================
 # STEP 1: DATEN LADEN UND VORBEREITEN
@@ -288,9 +288,30 @@ results["name"] = names.loc[X_test.index].values
 results["S.No"] = ids.loc[X_test.index].values
 
 #In eine CSV speichern
-results.to_csv("public/dataset/got_model_results_clean.csv", index=False)
+results.to_csv("public/dataset/got_model_results_clean.csv", index=False, float_format="%.6f")
 
 print(" Ergebnisse gespeichert in 'got_model_results_clean.csv'")
+
+# Wahrscheinlichkeiten auf allen Daten berechnen
+all_probs = rf.predict_proba(X)
+
+# Original-Datenstruktur (S.No, name, isAlive)
+df_export = pd.DataFrame({
+    "S.No": ids.values,
+    "name": names.values,
+    "isAlive": y.values,
+    "probability_death": all_probs[:, 0],
+    "probability_survival": all_probs[:, 1]
+})
+
+# Sicherstellen, dass alles zwischen 0 und 1 liegt
+assert df_export["probability_death"].between(0, 1).all(), "Wertfehler: prob_death"
+assert df_export["probability_survival"].between(0, 1).all(), "Wertfehler: prob_survival"
+
+# Speichern
+df_export.to_csv("public/dataset/got_full_scores.csv", index=False, float_format="%.6f")
+
+print("Zweite CSV-Datei mit Wahrscheinlichkeiten gespeichert unter: public/dataset/got_full_scores.csv")
 
 # ================================================
 # STEP 7: FEATURE IMPORTANCE VISUALISIERUNG: Welche Merkmale sind wichtig?
