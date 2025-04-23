@@ -2,6 +2,7 @@ import os
 import pickle
 import pandas as pd
 import streamlit as st
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 
 # === Seitenstruktur ===
 image_pages = {
@@ -9,20 +10,21 @@ image_pages = {
     "Confusion Matrix": ("heatmap.png", "Tatsächlich vs. Vorhergesagt: Wie gut unterscheidet das Modell zwischen Tot und Lebendig?"),
     "ROC-Kurve": ("roc.png", "Bewertet die Modellgüte über verschiedene Schwellen. AUC = Fläche unter der Kurve."),
     "Überlebenswahrscheinlichkeit Histogramm": ("survival_probability_hist.png", "Wie sicher ist sich das Modell bei der Prognose?"),
-    "Überleben nach Geschlecht": ("survival_by_gender.png", "Vergleich zwischen männlichen und weiblichen Charakteren."),
-    "Überleben nach Adel": ("survival_by_nobility.png", "Haben Adelige bessere Chancen?"),
     "Überleben nach Alter (Histogramm)": ("survival_by_age.png", "Welche Altersgruppen überleben am häufigsten?"),
-    "Überleben toter Verwandter": ("survival_has_dead_relatives.png", "Einfluss toter Verwandter auf Überlebenschance."),
-    "Überleben Heirat": ("survival_by_isMarried.png", "Verheiratete vs. Unverheiratete."),
     "Klassenverteilung": ("klassenverteilung.png", "Wie viele leben? Wie viele sind tot?"),
     "Partial Dependence Plot (PDP)": ("partial_dependence.png", "Einfluss einzelner Features auf die Vorhersage."),
     "Kumulative Feature-Wichtigkeit": ("kumulative-feature-wichtigkeit.png", "Wie viel erklärt man mit wenigen Features?"),
     "Korrelation zwischen Features": ("feature-korrelationen.png", "Zusammenhänge zwischen Features erkennen."),
     "Beispielbaum aus dem Random Forest": ("random_forest1.png", "Wie trifft das Modell Entscheidungen?"),
     "Charaktertypen (Cluster)": ("cluster.png", "Cluster von Figuren nach ähnlichen Eigenschaften."),
-    "Überleben nach Haus": ("survival_by_house.png", "Gibt es Häuser mit besonders hoher oder niedriger Überlebensrate?"),
     "Einführungskapitel vs. Überleben": ("intro_chapter_vs_survival.png", "Hängt der Zeitpunkt der Einführung mit dem Überleben zusammen?"),
-    "t-SNE Tot vs. Lebendig": ("tsne_survival.png", "Verteilung von Figuren im Merkmalsraum – trennt das Modell Tot und Lebendig?")
+    "t-SNE Tot vs. Lebendig": ("tsne_survival.png", "Verteilung von Figuren im Merkmalsraum – trennt das Modell Tot und Lebendig?"),
+    "Kalibrierung des Modells": ("calibration_curve.png", "Wie gut stimmen vorhergesagte Wahrscheinlichkeiten mit der Realität überein?"),
+    "Fehlklassifikationen nach Wahrscheinlichkeit": ("wrong_prediction_probs.png", "Welche Unsicherheiten stecken hinter den Fehlklassifikationen?"),
+    "Korrelation der Features mit Überleben": ("feature_target_correlation.png", "Welche Merkmale sind am stärksten mit Überleben korreliert?"),
+    "Alter vs. Vorhersagegenauigkeit": ("age_correctness.png", "Vergleich des Alters bei richtig und falsch klassifizierten Figuren."),
+    "Alter und Buchanzahl": ("survival_by_book_count.png", "Wie hängen Alter, Buchanzahl und Überleben zusammen?"),
+    "Charaktermerkmale & Überlebensraten": ("", "Wie beeinflussen Geschlecht, Adel, Familie, Ehe und Haus die Überlebenswahrscheinlichkeit?")
 
 }
 
@@ -32,20 +34,21 @@ slug_to_title = {
     "confusion-matrix": "Confusion Matrix",
     "roc-kurve": "ROC-Kurve",
     "histogramm": "Überlebenswahrscheinlichkeit Histogramm",
-    "geschlecht": "Überleben nach Geschlecht",
-    "adel": "Überleben nach Adel",
     "alter": "Überleben nach Alter (Histogramm)",
-    "tote-verwandte": "Überleben toter Verwandter",
-    "heirat": "Überleben Heirat",
     "klassenverteilung": "Klassenverteilung",
     "pdp": "Partial Dependence Plot (PDP)",
     "kumulative-wichtigkeit": "Kumulative Feature-Wichtigkeit",
     "korrelation": "Korrelation zwischen Features",
     "baum": "Beispielbaum aus dem Random Forest",
     "cluster": "Charaktertypen (Cluster)",
-    "haus": "Überleben nach Haus",
     "intro": "Einführungskapitel vs. Überleben",
-    "tsne": "t-SNE Tot vs. Lebendig"
+    "tsne": "t-SNE Tot vs. Lebendig",
+    "kalibrierung": "Kalibrierung des Modells",
+    "fehler-wahrscheinlichkeiten": "Fehlklassifikationen nach Wahrscheinlichkeit",
+    "feature-ziel-korrelation": "Korrelation der Features mit Überleben",
+    "alter-genauigkeit": "Alter vs. Vorhersagegenauigkeit",
+    "alter-buchanzahl": "Alter und Buchanzahl",
+    "charakter-merkmale": "Charaktermerkmale & Überlebensraten"
 }
 title_to_slug = {v: k for k, v in slug_to_title.items()}
 
@@ -225,13 +228,20 @@ elif current_page in slug_to_title:
         st.markdown("**Top-Merkmale nach Bedeutung für das Modell:**")
         st.dataframe(importance_df.reset_index(drop=True), use_container_width=True)
         st.markdown("""
-        Interpretation und kritische Einordnung:
+
+        Der Wert (z.B. 0.0994) gibt an, wie **oft ein Feature zur Trennung im Entscheidungsbaum beiträgt**. 
+
+        > Je höher, desto öfter verwemdet und desto wichtiger für das Modell. Aber: nicht automatisch "Kausalität" oder "objektiv wichtig", sondern: "statistisch nützlich zur Trennung"         
+
+                    
+        #### **Interpretation und kritische Einordnung**:
                 
-        - **`book4`**: Figuren, die im 4. Buch erscheinen, überleben häufiger, evtl. weil sie spät eingeführt wurden und dadurch weniger Zeit hatten zu sterben (→ mögliches Data Leakage).
-        - **`age`**: Jüngere Charaktere haben offenbar bessere Überlebenschancen. Vielleicht, weil sie weniger in gefährliche Konflikte verwickelt sind.
-        - **`male`, `isNoble`, `numDeadRelations`**: Geschlecht, Adel und tote Verwandte beeinflussen die Prognose. Das kann reale Story-Muster widerspiegeln, birgt aber auch das Risiko, Vorurteile zu übernehmen.
-        - **`house_unknown`, `culture_unknown`, `allegiances_unknown`**: Figuren ohne klare Zuordnung wirken oft unwichtiger in der Story und sterben dadurch seltener (weil sie kaum erwähnt werden).
+        - **`book4`**: ist eines der wichtigsten Merkmale. Das bedeutet: Ob eine Figur im 4. Buch vorkommt, hilft dem Modell stark dabei, zwischen überlebt/gestorben zu unterscheiden. Viele Figuren, die in Buch 4 neu eingeführt werden, sterben relativ schnell – das Modell erkennt dieses Muster.
+        - **`age`**: Alter ist ein wichtiges Unterscheidungsmerkmal im Modell. Wahrscheinlich, weil ältere Charaktere (wie z. B. Adlige Patriarchen) häufiger sterben. Die genaue Ursache kann das Modell jedoch nicht erklären, es erkennt lediglich das Muster. **Kritisch**: Alter ist oft geschätzt/ungenau.
+        - **`male`, `isNoble`, `numDeadRelations`**: Geschlecht, Adel und tote Verwandte beeinflussen die Prognose. Das kann reale Story-Muster widerspiegeln z. B. Männer als Kämpfer, Adelige als Plot-Figuren mit höherem Risiko, Hinweis auf "Gefährlichkeit" des Umfelds, birgt aber auch das Risiko, Vorurteile zu übernehmen. Adelige haben mehr Screentime – also auch höheres Risiko? Oder Plot-Schutz? 
+        - **`house_unknown`, `culture_unknown`, `allegiances_unknown`**: Unklare Zugehörigkeit (z. B. unbekanntes Haus oder Kultur) kann ein Hinweis auf Nebenfiguren sein. Diese haben oft weniger Screentime und sterben entweder schneller oder spielen für die Haupthandlung keine Rolle mehr, evtl. schlechter geschützt? Oder einfach wenig Info.
         
+                    
         **Hinweis**: Feature-Wichtigkeit im Random Forest zeigt *statistische Bedeutung*, nicht *kausalen Einfluss*. 
         """)
 
@@ -241,10 +251,10 @@ elif current_page in slug_to_title:
 
         Die Matrix zeigt, wie gut das Modell zwischen „Tot“ und „Lebendig“ unterscheidet:
 
-        - **True Negative (oben links)**: 42 Figuren wurden korrekt als „tot“ vorhergesagt.
-        - **True Positive (unten rechts)**: 203 Figuren wurden korrekt als „lebendig“ erkannt.
-        - **False Positive (oben rechts)**: 27 Figuren wurden fälschlich als „lebendig“ klassifiziert – das Modell unterschätzt hier das Risiko.
-        - **False Negative (unten links)**: 40 Figuren wurden fälschlich als „tot“ eingestuft – das Modell ist hier zu pessimistisch.
+        - **True Negative (oben links)**: 39 Figuren wurden korrekt als „tot“ vorhergesagt.
+        - **True Positive (unten rechts)**: 201 Figuren wurden korrekt als „lebendig“ erkannt (201 von 243 = 82,7 %). 
+        - **False Positive (oben rechts)**: 30 Figuren wurden fälschlich als „lebendig“ klassifiziert → problematisch bei Risikovorhersagen, das Modell unterschätzt hier das Risiko.
+        - **False Negative (unten links)**: 42 Figuren wurden fälschlich als „tot“ eingestuft –→ das Modell überschätzt Todesrisiko bei manchen.
 
         #### Interpretation:
         - Das Modell **erkennt Überlebende recht zuverlässig** (hohe True-Positive-Zahl).
@@ -256,46 +266,66 @@ elif current_page in slug_to_title:
         Das Modell ist deutlich besser bei Überlebenden. Es erkennt lebdige Figuren recht gut, hat aber Schwierigkeiten, Tote korrekt zu klassifizieren (Recall für Tote ist schlechter).
         Es vertraut zu stark auf „lebendig“, und macht bei toten Charakteren häufiger Fehler (→ Confusion Matrix zeigt viele False Negatives).
         """)
+                # ==== Metriken berechnen ====
+        y_test = pd.read_csv("public/dataset/got_model_results_clean.csv")["actual"]
+        y_pred = pd.read_csv("public/dataset/got_model_results_clean.csv")["predicted"]
+
+        cm = confusion_matrix(y_test, y_pred)
+        tn, fp, fn, tp = cm.ravel()
+
+        accuracy = accuracy_score(y_test, y_pred)
+        precision = precision_score(y_test, y_pred, pos_label=0)
+        recall = recall_score(y_test, y_pred, pos_label=0)
+        f1 = f1_score(y_test, y_pred, pos_label=0)
+
+        st.markdown(f"""
+        ### Wichtige Klassifikationsmetriken für Klasse „Tot“
+
+        | Metrik       | Wert   | Bedeutung | Interpretation | 
+        |--------------|--------|-----------|----------------|
+        | **Accuracy** | {accuracy:.3f} | Anteil aller korrekten Vorhersagen | Rund 77 % aller Vorhersagen des Modells sind korrekt. Solide, aber berücksichtigt nicht, ob die schwerer zu erkennenden Toten gut erkannt werden |
+        | **Precision** (tot) | {precision:.3f} | Wie viele als „tot“ Vorhergesagte sind wirklich tot | Von den Figuren, die das Modell als „tot“ einstuft, ist weniger als die Hälfte wirklich tot. → Das Modell ist vorschnell mit Todesurteilen. |
+        | **Recall** (tot)    | {recall:.3f} | Wie viele der wirklich Toten wurden erkannt | Etwa 56 % der tatsächlich gestorbenen Figuren wurden auch als tot erkannt. → Das Modell erkennt über die Hälfte, aber nicht alle gefährdeten Figuren. |
+        | **F1-Score** (tot)  | {f1:.3f} | Kompromiss zwischen Genauigkeit und Empfindlichkeit für "tot"-Klasse | Mittelwert aus Precision & Recall – zeigt: Die Leistung bei der Totenklasse ist eher mittelmäßig, aber besser als Zufall | 
+        """)
 
 
     elif title == "ROC-Kurve":
         st.markdown("""
-        ### ROC-Kurve – Modellgüte bewerten
+        ### ROC-Kurve – Wie gut trennt das Modell?
 
-        Die **ROC-Kurve (Receiver Operating Characteristic)** bewertet die Fähigkeit des Modells, zwischen „lebendig“ und „tot“ zu unterscheiden – **über alle möglichen Schwellenwerte hinweg**.
+        Die **ROC-Kurve** zeigt, wie gut unser Modell zwischen „tot“ und „lebendig“ unterscheidet, **über alle Entscheidungsschwellen hinweg**.
 
         **Achsen:**
-        - **x-Achse** = False Positive Rate (fälschlich als lebendig erkannt)
-        - **y-Achse** = True Positive Rate (korrekt als lebendig erkannt)
+        - x-Achse: **False Positive Rate** – wie oft fälschlich "lebendig"
+        - y-Achse: **True Positive Rate** – wie oft korrekt "lebendig"
+        - Je näher die Kurve an der linken oberen Ecke, desto besser
 
-        **AUC (Area Under the Curve):**
-        - **0.5** → Modell rät zufällig
-        - **1.0** → perfekte Trennung zwischen Klassen
-        - **Unser Modell: AUC = 0.81** → solide Trennschärfe
+        **AUC (Area Under Curve)** = **0.78**  
+        → Das Modell trennt **besser als Zufall**, aber nicht perfekt.  
+        → Gute statistische Trennung, aber mit **Unsicherheiten in der Praxis**.
 
         ---
 
-        ### Kritische Bewertung
+        ### Interpretation:
 
-        - Die Kurve liegt deutlich **über der Zufallsdiagonalen** – das ist ein gutes Zeichen.
-        - Aber: **AUC ignoriert Klassenverteilung** – ein gutes AUC bedeutet nicht, dass beide Klassen (z. B. „tot“) gut erkannt werden.
-        - AUC allein zeigt **nicht**, wo das Modell Fehler macht (dafür besser: Confusion Matrix).
+        - AUC = 0.78 heißt: Das Modell erkennt **in 78 % der Fälle korrekt**, ob eine Figur eher tot oder lebendig ist **rein statistisch**.
+        - Es **kann Klassen trennen**, macht aber **noch viele Fehler bei der Umsetzung** (z. B. siehe Confusion Matrix).
+        - **Stärken**: Erkennung lebendiger Figuren.
+        - **Schwächen**: Viele Tote werden übersehen → **Unterschätzung des Risikos**.
 
-        **Warum liegt die AUC nicht bei 0.90+?**
+        ---
 
-        1. **Unvollständige oder unscharfe Daten:**  
-        Viele Nebencharaktere haben lückenhafte Angaben, das erschwert präzise Vorhersagen.
+        ### Kritische Einordnung:
 
-        2. **Korrelation statt Kausalität:**  
-        Das Modell erkennt Muster wie „mehr Buchauftritte = lebt länger“, was **statistisch sinnvoll**, aber **inhaltlich fragwürdig** ist.
-
-        3. **Fehlendes Kontextwissen:**  
-        Das Modell kennt keine Handlungslogik, Plotstruktur oder Beliebtheit. Entscheidende Einflussfaktoren beim Tod einer Figur.
+        - Die AUC ist **nur eine theoretische Bewertung**, sie sagt **nichts über konkrete Fehlklassifikationen** aus.
+        - Sie ignoriert **Klassenungleichheit** (mehr Lebende als Tote).
+        - Sie sagt nicht, **wo das Modell unsicher ist**, dafür braucht man z. B. die Kalibrierungskurve oder die Verteilung der Fehler.
 
         **Fazit:**  
-        Die ROC-Kurve zeigt, wie gut das Modell **theoretisch trennt**, aber sagt **nichts darüber**, **wo** und **warum** es im Einzelfall scheitert.
+        Eine AUC von 0.78 zeigt: Das Modell erkennt Muster, aber nicht zuverlässig genug für präzise Risikoabschätzungen.  
+        Besonders Todesfälle bleiben schwierig, für kritische Anwendungen bräuchte man **bessere Daten, bessere Features oder ein anderes Modell**.
         """)
-
 
 
     elif title == "Überlebenswahrscheinlichkeit Histogramm":
@@ -308,7 +338,7 @@ elif current_page in slug_to_title:
         #### Interpretation der Achsen:
         - **x-Achse**: vorhergesagte Überlebenswahrscheinlichkeit (zwischen 0 = sicher tot und 1 = sicher lebendig)
         - **y-Achse**: Anzahl der Figuren mit dieser Wahrscheinlichkeit
-
+                    
         ---
 
         ### Was fällt auf?
@@ -373,7 +403,7 @@ elif current_page in slug_to_title:
         - Feature-Wichtigkeit kann durch **Korrelation** oder **Datendominanz** (z. B. viele Nullwerte bei seltenen Features) verzerrt sein.
         - Besonders bei stark korrelierten Features können **mehrere scheinbar unwichtige Features** gemeinsam Einfluss haben, was hier **nicht sichtbar** ist.
 
-        👉 **Fazit:** Viele Features im Modell sind formal vorhanden, aber nur wenige dominieren die Entscheidungen. Für robuste Interpretationen sollte man Feature-Reduktion testen und mit SHAP-Werten vergleichen.
+        **Fazit:** Viele Features im Modell sind formal vorhanden, aber nur wenige dominieren die Entscheidungen. Für robuste Interpretationen sollte man Feature-Reduktion testen und mit SHAP-Werten vergleichen.
         """)
 
 
@@ -468,68 +498,6 @@ elif current_page in slug_to_title:
 
         """)
 
-
-    elif title == "Überleben nach Geschlecht":
-        st.markdown("""
-        ### Überleben nach Geschlecht – Was erkennt das Modell?
-
-        Dieses Balkendiagramm zeigt den Anteil überlebender Figuren nach Geschlecht.
-        - **0 = weiblich**, **1 = männlich**
-        - Weibliche Charaktere überleben laut Modell **häufiger** als männliche.
-
-        #### Interpretation:
-        - Der Unterschied ist statistisch signifikant, aber **nicht extrem**.
-        - Das Modell erkennt Muster wie: *"Weibliche Figuren überleben öfter."*
-
-        #### Kritische Bewertung:
-        - **Achtung vor Schein-Kausalität**: Das Modell erkennt **Korrelation**, nicht Ursache. 
-        - Der Unterschied könnte auf **Storyrollen** beruhen (z. B. Männer kämpfen öfter).
-        - **Bias-Gefahr**: Gesellschaftliche Stereotype aus der Story könnten unkritisch übernommen werden.
-        - **Modelltransparenz**: Ohne SHAP oder PDP ist unklar, wie **stark** das Merkmal wirklich wirkt.
-
-        Das Feature „Geschlecht“ liefert also Hinweise, sollte aber **nicht isoliert interpretiert** werden.
-        """)
-
-
-    elif title == "Überleben nach Adel":
-        st.markdown("""
-        ### Überleben nach Adel – Was sagt das Modell?
-
-        Diese Grafik zeigt, ob Figuren mit Adelstitel (isNoble = 1) laut Modell eher überleben als nicht-adelige Figuren (isNoble = 0).
-
-        #### Interpretation:
-        - Der Unterschied ist **leicht erkennbar**, aber **nicht sehr stark**.
-        - **Nicht-adelige Figuren** scheinen im Schnitt **etwas höhere Überlebensraten** zu haben.
-
-        #### Kritische Bewertung:
-        - **Scheinbar paradoxer Effekt**: Adelige werden im Plot oft als zentrale Figuren dargestellt, aber eben auch als Zielscheiben politischer Intrigen.
-        - Das Modell erkennt keine "Macht" oder "Plotrelevanz", sondern nur Korrelationen und die deuten hier **keinen klaren Vorteil für Adelige** an.
-        - **Feature-Bias möglich**: Vielleicht hängt das Ergebnis mit anderen Merkmalen zusammen (z. B. „Adelige sind häufiger Männer und sterben öfter“).
-        - **Fehlende Kausalität**: Nur weil jemand adelig ist, „verursacht“ das kein Überleben oder Sterben.
-
-        Fazit: Der Adelstitel hat **nur begrenzt Aussagekraft** und sollte nie isoliert interpretiert werden.
-        """)
-
-
-    elif title == "Überleben Heirat":
-        st.markdown("""
-        ### Überleben in Abhängigkeit vom Familienstand
-
-        Diese Grafik zeigt, ob es einen Zusammenhang zwischen dem Merkmal **`isMarried`** und der Überlebenswahrscheinlichkeit von Charakteren gibt.
-
-        #### Interpretation:
-        - **Unverheiratete Figuren (0)** haben in diesem Datensatz eine **leicht höhere Überlebensrate**.
-        - **Verheiratete Charaktere (1)** überleben statistisch seltener.
-
-        #### Mögliche Erklärungen:
-        - **Plot-Mechanik**: Verheiratete Figuren könnten narrativ eher Zielscheibe von Konflikten oder dramatischen Wendungen sein (z. B. politische Ehen, Rachemotive).
-        - **Verzerrung durch Nebenfiguren**: Viele unverheiratete Figuren könnten einfache, wenig involvierte Nebenrollen mit geringem Sterberisiko sein.
-        - **Kulturelle Muster**: In GoT sind verheiratete Figuren oft in zentrale Familienkonflikte oder Machtspiele verwickelt, das könnte ein Risiko darstellen.
-
-        > Fazit: Die Differenz ist **relativ gering**, aber statistisch erkennbar. Ob Heirat kausal zu höherem Risiko führt, lässt sich **nicht** direkt sagen. Die Grafik zeigt nur einen **Trend**, keine Ursache.
-        """)
-
-
     elif title == "Überleben nach Alter (Histogramm)":
         st.markdown("""
         ### Altersverteilung bei Überlebenden und Toten
@@ -547,24 +515,6 @@ elif current_page in slug_to_title:
         > Hinweis: Das Modell kann durch die Median-Füllung gewisse **Alterseffekte unterschätzen oder falsch deuten**.
     """)
 
-
-    elif title == "Überleben toter Verwandter":
-        st.markdown("""
-        ### Überleben in Abhängigkeit von toten Verwandten
-
-        Diese Analyse untersucht den Zusammenhang zwischen dem Merkmal **`has_dead_relatives`** und der Überlebensrate von Charakteren.
-
-        #### Interpretation:
-        - Charaktere **ohne tote Verwandte** (0) haben eine signifikant **höhere Überlebensrate**.
-        - Figuren mit **toten Verwandten** (1) sterben statistisch **häufiger**.
-
-        #### Mögliche Gründe:
-        - **Story-Kontext**: Familienkonflikte, Rachegeschichten oder Blutfehden könnten eine höhere Gefahr für Figuren mit toten Verwandten bedeuten.
-        - **Datenabhängigkeit**: Das Feature basiert auf vorhandenen Stammbaumdaten. Nebencharaktere ohne dokumentierte Familie erscheinen hier eventuell verzerrt.
-        - **Fehlende Tiefe**: Das Feature unterscheidet nicht zwischen Anzahl, Nähe oder Bedeutung der toten Verwandten. Ein toter Cousin zählt genauso wie ein ermordetes Elternteil.
-
-        > Fazit: Das Modell erkennt einen Zusammenhang, aber **ohne inhaltliches Verständnis** für familiäre Beziehungen bleibt es eine **statistische Korrelation ohne Kontext**.
-        """)
 
     elif title == "Einführungskapitel vs. Überleben":
         st.markdown("""
@@ -587,10 +537,230 @@ elif current_page in slug_to_title:
         Das Modell erkennt: *„Frühe Einführung = höheres Risiko“*; das ist plausibel, aber kein sachlicher Grund. Deshalb ist **kontextkritische Bewertung wichtig.**
         """)
 
-    elif title == "Überleben nach Haus":
-        st.markdown("""
-        ### Überlebensraten nach Hauszugehörigkeit
 
+    elif title == "t-SNE Tot vs. Lebendig":
+        st.markdown("""
+        ### t-SNE Visualisierung: Tot vs. Lebendig
+
+        Ziel: Figuren mit ähnlichem Profil sollen in der Grafik **nah beieinander liegen**.
+
+        Diese Darstellung zeigt Figuren in einer **reduzierten 2D-Darstellung** ihrer Eigenschaften (t-SNE). Jede Figur ist ein Punkt, eingefärbt nach Überlebensstatus:
+        - **Rot = tot**
+        - **Blau = lebt**
+
+        #### Interpretation:
+        - Die Punkte gruppieren sich **nach Ähnlichkeiten in den Eingabemerkmalen** (z. B. Alter, Geschlecht, Haus, Titel etc.).
+        - Einige **Cluster sind farblich eindeutig** (z. B. überwiegend rot oder blau) → das Modell erkennt dort klare Muster.
+        - In **vielen Bereichen sind die Farben jedoch gemischt**, Figuren mit ähnlichem Profil überleben teils, teils nicht.
+        - Das zeigt: Das Modell hat in diesen Bereichen **keine klare Trennschärfe**, Figuren sind sich zu ähnlich, um zuverlässig zwischen Leben und Tod zu unterscheiden.
+
+        #### Kritische Bewertung:
+        - t-SNE zeigt **lokale Ähnlichkeiten**, aber keine kausalen Zusammenhänge.
+        - Die **Achsen haben keine konkrete Bedeutung**, es geht nur um Nähe im Raum.
+        - Die Methode ist rein visuell; sie zeigt Muster, aber **erklärt sie nicht**.
+        
+        **Fazit:**  
+        Der Plot liefert **visuelle Hinweise auf trennbare Gruppen**, aber auch auf die **Komplexität** der Aufgabe: Viele Figuren bewegen sich im „Graubereich“, was die Vorhersage erschwert.
+        """)
+
+
+    elif title == "Kalibrierung des Modells":
+        st.markdown("""
+        ### Kalibrierung des Modells
+
+        Die Kalibrierungskurve zeigt, **wie gut die vorhergesagten Wahrscheinlichkeiten** mit der Realität übereinstimmen.
+
+        **Achsen:**
+        - **x-Achse**: vorhergesagte Überlebenswahrscheinlichkeit
+        - **y-Achse**: tatsächlicher Anteil Überlebender in dieser Gruppe
+        - **Diagonale = perfekte Kalibrierung** (z. B. bei 70 % Prognose auch 70 % tatsächliches Überleben)
+
+        ---
+
+        ### Interpretation:
+
+        - Im **oberen Bereich (ab 0.8)** ist das Modell **gut kalibriert** → hohe Prognosen stimmen.
+        - Im **mittleren Bereich (0.3–0.6)** sind die Vorhersagen **teilweise zu optimistisch** → Modell überschätzt das Überleben.
+        - Bei **niedrigen Wahrscheinlichkeiten (< 0.3)** weicht das Modell **deutlich ab** – es „bestraft“ manche Figuren zu stark.
+
+        ---
+
+        ### Fazit:
+
+        - Das Modell ist **nicht durchgehend zuverlässig kalibriert**, vor allem im mittleren Bereich.
+        - **Vertrauen in Wahrscheinlichkeiten** sollte vorsichtig sein – besonders bei mittleren Werten.
+        - Für Anwendungen mit Risikoabwägung (z. B. „Charakter in Gefahr?“) wäre **eine Kalibrierungskorrektur** sinnvoll.
+        """)
+
+    elif title == "Fehlklassifikationen nach Wahrscheinlichkeit":
+        st.markdown("""
+        ### Fehlklassifikationen nach Überlebenswahrscheinlichkeit
+
+        Dieses Histogramm zeigt, bei welchen vorhergesagten Wahrscheinlichkeiten das Modell **falsche Vorhersagen gemacht hat**.
+
+        #### Interpretation:
+        - **x-Achse**: vorhergesagte Überlebenswahrscheinlichkeit (nur falsch klassifizierte Fälle)
+        - **y-Achse**: Anzahl der Fehlklassifikationen bei dieser Wahrscheinlichkeit
+
+        #### Was fällt auf?
+        - Viele Fehlklassifikationen passieren bei **Werten zwischen 0.5 und 0.8**
+        - Das Modell ist sich dort **moderat sicher**, aber liegt oft daneben, es „überschätzt“ das Überleben
+        - Wenige Fehler bei 0.2 oder 0.95 → dort ist das Modell **zuverlässiger**
+
+        #### Fazit:
+        Die meisten Fehler passieren in einem Bereich, wo das Modell **eigentlich eine recht klare Meinung hat**. Das spricht für **Fehlkalibrierung oder schwierige Fälle**, bei denen Features **nicht eindeutig** sind.
+        """)
+
+    elif title == "Korrelation der Features mit Überleben":
+        st.markdown("""
+        ### Korrelation von Merkmalen mit Überleben (isAlive)
+
+        Diese Grafik zeigt: Welche Merkmale hängen statistisch mit dem Überleben zusammen?
+
+        **Positiv korreliert (mehr Überlebenschance):**
+        - `book4`: Figuren aus Buch 4 leben häufiger – wohl, weil sie spät eingeführt wurden und der Tod „noch nicht dran“ war.
+        - `age`, `culture_Valyrian`, `allegiances_unknown`: Deuten auf spezielle Gruppen oder Nebenfiguren mit höherer Überlebenschance hin.
+
+        **Negativ korreliert (niedrigere Überlebenschance):**
+        - `numDeadRelations`: Figuren mit toten Verwandten sterben häufiger → mögliches Indiz für gefährliches Umfeld.
+        - `male`, `house_Targaryen`, `Night’s Watch`, `Wildling`: Rollen oder Häuser mit erhöhter Plot-Gefahr (z. B. Kämpfer, Intrigen, Drachenblut).
+
+        ---
+
+        ### Kritische Einordnung:
+
+        - **Korrelation ≠ Ursache**: Nur weil ein Merkmal mit Tod oder Leben zusammenhängt, verursacht es das nicht.
+        - Viele dieser Features spiegeln eher **Plotrollen, Screentime oder Story-Muster** wider.
+        - Besonders `book4` ist kritisch: Es verrät viel über die Erzählstruktur – aber wäre z. B. **nicht verfügbar in einer echten Prognose vor Buch 4** → Gefahr von **Data Leakage**.
+
+        **Fazit:**  
+        Diese Analyse zeigt, was das Modell erkennt – aber nicht *warum*. Für echte Interpretationen braucht es zusätzliche Kontext- und Modellverständnis.
+        """)
+
+
+    elif title == "Alter vs. Vorhersagegenauigkeit":
+        st.markdown("""
+        ### Alter bei richtiger vs. falscher Vorhersage
+
+        Diese Boxplot-Grafik zeigt, ob das Alter der Figuren einen Einfluss darauf hat, **ob das Modell richtig oder falsch lag**:
+
+        #### Interpretation:
+        - **x-Achse**: `0 = falsch`, `1 = korrekt` → Vorhersagequalität
+        - **y-Achse**: tatsächliches Alter
+        - Die Verteilungen sind **relativ ähnlich** → Das Modell macht **Fehler bei jungen und alten Figuren gleichermaßen**
+        
+        #### Fazit:
+        - Alter scheint **kein starker Einflussfaktor für Fehlklassifikationen** zu sein.
+        - Das Modell behandelt Altersgruppen **relativ gleich**, es liegt nicht besonders oft bei einer bestimmten Altersgruppe daneben.
+        """)
+    
+    elif title == "Alter und Buchanzahl":
+        st.markdown("### Zusammenhang zwischen Alter, Buchanzahl und Überleben")
+
+        st.markdown("""
+        Diese Visualisierung zeigt einen **Scatterplot**, in dem jede Figur durch drei Dimensionen dargestellt wird:
+        
+        - **x-Achse:** Alter der Figur (geschätzt oder bekannt)
+        - **y-Achse:** Anzahl der Bücher, in denen die Figur vorkommt (`book_count`)
+        - **Farbe:** Überlebensstatus (0 = tot, 1 = lebendig)
+
+        ---
+
+        ### Interpretation:
+
+        #### 1. Viele Überlebende mit vielen Buchauftritten
+        - Figuren, die in **4 oder 5 Büchern** auftauchen, überleben deutlich häufiger (rote Punkte oben).
+        - Das Modell erkennt hier eine starke **Korrelation zwischen Präsenz in der Geschichte und Überlebenschance**.
+
+        > Mögliche Erklärung: Wichtige Figuren mit vielen Auftritten sind „plotgeschützt“.
+
+        #### 2. Viele Tote bei wenigen Buchauftritten
+        - Figuren mit **0–2 Buchauftritten** sterben häufiger (blaue Punkte unten).
+        - Das sind oft **Nebenfiguren, Soldaten, Opfer etc.**, die nur kurz auftauchen und schnell wieder verschwinden.
+
+        #### 3. Alter ist relativ unspezifisch
+        - In allen Altersbereichen kommen sowohl Überlebende als auch Tote vor.
+        - Das Alter allein reicht **nicht aus**, um den Überlebensstatus vorherzusagen.
+
+        > Fazit: Das Modell sieht Alter eher als **sekundäres Feature**.
+
+        ---
+
+        ### Kritische Einordnung
+
+        - **`book_count`** ist eines der mächtigsten Features im Modell, es sagt indirekt: *„Wie wichtig ist diese Figur für den Plot?“*
+        - Aber: Das kann zu **Data Leakage** führen. Die Anzahl der Buchauftritte enthält bereits Informationen darüber, **wie lange die Figur überlebt hat**.
+        - **Alter** ist häufig geschätzt oder fehlt und wurde mit dem Median ersetzt → das verzerrt die Verteilung.
+        """)
+
+    elif title == "Charaktermerkmale & Überlebensraten":
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Geschlecht")
+            show_saved_image("survival_by_gender.png")
+            st.caption("""
+            Unterschiede im Überleben zwischen männlichen und weiblichen Figuren.
+
+            Dieses Balkendiagramm zeigt den Anteil überlebender Figuren nach Geschlecht.
+
+            - **0 = weiblich**, **1 = männlich**
+            - Weibliche Charaktere überleben laut Modell **häufiger** als männliche.
+
+            #### Interpretation:
+            - Der Unterschied ist statistisch signifikant, aber **nicht extrem**.
+            - Das Modell erkennt Muster wie: *"Weibliche Figuren überleben öfter."*
+            """)
+
+            st.subheader("Tote Verwandte")
+            show_saved_image("survival_has_dead_relatives.png")
+            st.caption("""
+            Einfluss von toten Familienmitgliedern auf die Überlebenswahrscheinlichkeit.
+            #### Interpretation:
+            - Charaktere **ohne tote Verwandte** (0) haben eine signifikant **höhere Überlebensrate**.
+            - Figuren mit **toten Verwandten** (1) sterben statistisch **häufiger**.
+
+            #### Mögliche Gründe:
+            - **Story-Kontext**: Familienkonflikte, Rachegeschichten oder Blutfehden könnten eine höhere Gefahr für Figuren mit toten Verwandten bedeuten.
+            - **Datenabhängigkeit**: Das Feature basiert auf vorhandenen Stammbaumdaten. Nebencharaktere ohne dokumentierte Familie erscheinen hier eventuell verzerrt.
+            - **Fehlende Tiefe**: Das Feature unterscheidet nicht zwischen Anzahl, Nähe oder Bedeutung der toten Verwandten. Ein toter Cousin zählt genauso wie ein ermordetes Elternteil.
+            """)
+
+        with col2:
+            st.subheader("Adel")
+            show_saved_image("survival_by_nobility.png")
+            st.caption("""
+            Wie stark korreliert ein Adelstitel mit dem Überleben?
+            #### Interpretation:
+            - Der Unterschied ist **leicht erkennbar**, aber **nicht sehr stark**.
+            - **Nicht-adelige Figuren** scheinen im Schnitt **etwas höhere Überlebensraten** zu haben.
+
+            #### Kritische Bewertung:
+            - **Scheinbar paradoxer Effekt**: Adelige werden im Plot oft als zentrale Figuren dargestellt, aber eben auch als Zielscheiben politischer Intrigen.
+            - Das Modell erkennt keine "Macht" oder "Plotrelevanz", sondern nur Korrelationen und die deuten hier **keinen klaren Vorteil für Adelige** an.
+            - **Feature-Bias möglich**: Vielleicht hängt das Ergebnis mit anderen Merkmalen zusammen (z. B. „Adelige sind häufiger Männer und sterben öfter“).
+            - **Fehlende Kausalität**: Nur weil jemand adelig ist, „verursacht“ das kein Überleben oder Sterben.
+            """)
+
+            st.subheader("Heirat")
+            show_saved_image("survival_by_isMarried.png")
+            st.caption("""
+            Vergleich zwischen verheirateten und nicht-verheirateten Figuren.
+            #### Interpretation:
+            - **Unverheiratete Figuren (0)** haben in diesem Datensatz eine **leicht höhere Überlebensrate**.
+            - **Verheiratete Charaktere (1)** überleben statistisch seltener.
+
+            #### Mögliche Erklärungen:
+            - **Plot-Mechanik**: Verheiratete Figuren könnten narrativ eher Zielscheibe von Konflikten oder dramatischen Wendungen sein (z. B. politische Ehen, Rachemotive).
+            - **Verzerrung durch Nebenfiguren**: Viele unverheiratete Figuren könnten einfache, wenig involvierte Nebenrollen mit geringem Sterberisiko sein.
+            - **Kulturelle Muster**: In GoT sind verheiratete Figuren oft in zentrale Familienkonflikte oder Machtspiele verwickelt, das könnte ein Risiko darstellen.
+            """)
+
+        st.subheader("Hauszugehörigkeit")
+        show_saved_image("survival_by_house.png")
+        st.caption("""
+        Wie unterscheiden sich Überlebensraten je nach Haus?
         Dieses Balkendiagramm zeigt, **wie groß der Anteil überlebender Figuren** je nach Haus ist.
 
         #### Interpretation:
@@ -602,28 +772,6 @@ elif current_page in slug_to_title:
         - Die Balken zeigen **Mittelwerte mit Unsicherheitsintervallen** – bei kleinen Häusern (z. B. Targaryen) ist die Aussage **weniger stabil**.
         - Die Hauszugehörigkeit ist ein **Proxy-Feature** für narrative Wichtigkeit – es sagt oft mehr über Plotrollen als über reale Überlebensmuster.
         - Auch die Kategorie **„Other“** enthält verschiedene Häuser – Interpretation mit Vorsicht!
-
-        #### Fazit:
-        Die Hauszugehörigkeit beeinflusst die Überlebenswahrscheinlichkeit – **aber nicht kausal**, sondern oft **indirekt über narrative Rollen und Screentime**.
-        """)
-
-    elif title == "t-SNE Tot vs. Lebendig":
-        st.markdown("""
-        ### t-SNE Visualisierung: Tot vs. Lebendig
-
-        Diese Darstellung zeigt Figuren in einer **reduzierten 2D-Darstellung** ihrer Eigenschaften (t-SNE). Jede Figur ist ein Punkt, eingefärbt nach Überlebensstatus:
-        - **Rot = tot**
-        - **Blau = lebt**
-
-        #### Interpretation:
-        - Die Punkte gruppieren sich **nach Ähnlichkeiten in den Eingabemerkmalen**. Figuren mit ähnlichem Profil liegen räumlich beieinander.
-        - Die Farbverteilung ist **nicht klar getrennt**: Es gibt **viele durchmischte Bereiche**, in denen sowohl Tote als auch Lebende vorkommen.
-        - Einige **Cluster sind farblich dominanter** (z. B. rein rot oder rein blau). Dort erkennt das Modell möglicherweise klarere Muster.
-
-        #### Kritische Bewertung:
-        - t-SNE zeigt **nur relative Ähnlichkeiten**, aber keine absolute Trennschärfe.
-        - Es kann sein, dass Figuren **aus dem gleichen Plotstrang** oder mit ähnlichem Alter/Geschlecht/Haus automatisch in Gruppen landen, ohne dass ein echter Zusammenhang zur Überlebenswahrscheinlichkeit besteht.
-        - Dennoch ist es ein **visuelles Indiz**, ob sich Klassen trennen lassen oder **stark überlappen**.
         """)
 
 # === Sidebar Navigation ===

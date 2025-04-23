@@ -5,15 +5,12 @@ from sklearn.ensemble import RandomForestClassifier #Random-Forest-Modell holen
 from sklearn.model_selection import train_test_split #Teilt die Daten zufällig in Trainings- und Testdaten auf
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc #Werkzeuge zur Bewertung des Modells
 from imblearn.over_sampling import SMOTE #unausgewogene Klassen ausgleichen (z. B. zu viele Überlebende, zu wenige Tote
-import shap #Erklärbarkeit des Modells verbessern
 import os
 
-def save_plot(filename):
-    folder = "public/pictures"
-    os.makedirs(folder, exist_ok=True)  # Ordner anlegen, falls nicht vorhanden
-    filepath = os.path.join(folder, filename)
-    plt.savefig(filepath, bbox_inches='tight')
-    print(f"Plot gespeichert unter: {filepath}")
+from visualizations import generate_all_plots  
+
+# Umschalten: Soll mit oder ohne Buchfeatures gearbeitet werden?
+USE_BOOK_FEATURES = True  # oder False
 
 # ================================================
 # STEP 1: DATEN LADEN UND VORBEREITEN
@@ -22,14 +19,14 @@ df = pd.read_csv("public/dataset/got_merged_dataset.csv") #CSV-Datei mit Daten i
 df.columns = df.columns.str.strip() #Entfernt überflüssige Leerzeichen aus den Spaltennamen
 
 # =============================
-# NEUE FEATURES HINZUFÜGEN
+# NEUE FEATURES HINZUFÜGEN / NEUE MERKMALE SCHAFFEN
 # =============================
-# Fehlende Werte auffüllen
+# Fehlende Werte auffüllen, weil mit Nan Maschine nicht gut lernen kann
 df["culture"] = df["culture"].fillna("unknown")
 df["house"] = df["house"].fillna("unknown")
 df["age"] = df["age"].fillna(df["age"].median()) #Wenn age fehlt → der mittlere Wert (Median) aller bekannten Alter
 
-# Familie – ob überhaupt bekannt
+# Neue Features aus vorhandenen Spalten ableiten
 #Gibt 1, wenn Mutter/Vater/Erbe/Ehepartner bekannt ist, sonst 0.
 df["has_mother"] = df["mother"].notna().astype(int)
 df["has_father"] = df["father"].notna().astype(int)
@@ -102,37 +99,23 @@ else:
     df["allegiances"] = "unknown"
     df["allegiance_grouped"] = "Other"
 
-
-# Fallback für optionale Spalten, falls sie nicht existieren
-#Falls wichtige Spalten fehlen → auffüllen
-optional_zero_fields = [
-    "book_of_death",
-    "a_game_of_thrones",
-    "a_clash_of_kings",
-    "a_storm_of_swords",
-    "a_feast_for_crows",
-    "a_dance_with_dragons"
-]
-
-for col in optional_zero_fields:
-    if col not in df.columns:
-        print(f"Spalte '{col}' fehlt – wird mit 0 ergänzt.")
-        df[col] = 0
-    else:
-        df[col] = df[col].fillna(0)
-
-
 # ================================================
 # FEATURES DEFINIEREN 
 # ================================================
 #Auswahl der Spalten (= Features), die für das Modell genutzt werden
-features = [
+# Features MIT Buchinfos (original)
+features_with_books = [
     "title", "male", "culture", "house", "age",
     "book1", "book2", "book3", "book4", "book5",
     "isMarried", "isNoble", "numDeadRelations",
-    "allegiances",
-    "a_game_of_thrones", "a_clash_of_kings", "a_storm_of_swords",
-    "a_feast_for_crows", "a_dance_with_dragons"
+    "allegiances"
+]
+
+# Features OHNE Buchinfos
+features_without_books = [
+    "title", "male", "culture", "house", "age",
+    "isMarried", "isNoble", "numDeadRelations",
+    "allegiances"
 ]
 
 #Nur Datensätze verwenden, bei denen das Ziel („isAlive“) bekannt ist 
@@ -147,6 +130,9 @@ df = df.drop(columns=[
 
 # Ziel- und Feature-Set extrahieren
 #Ziel- und Feature-Tabelle bauen
+# Feature-Set abhängig davon wählen, ob Buchfeatures genutzt werden sollen
+features = features_with_books if USE_BOOK_FEATURES else features_without_books
+
 df_model = df[["S.No", "name"] + features + ["isAlive"]].copy()
 
 # One-Hot-Encoding für kategoriale Felder
@@ -268,7 +254,7 @@ for thresh in np.arange(0.4, 0.8, 0.01):
         best_f1 = f1
         best_thresh = thresh
 
-print(f"🔎 Beste Schwelle für Klasse 'tot': {best_thresh:.2f} mit F1-Score {best_f1:.3f}")
+print(f" Beste Schwelle für Klasse 'tot': {best_thresh:.2f} mit F1-Score {best_f1:.3f}")
 
 # ================================================
 # STEP 6: ERGEBNIS-TABELLE SPEICHERN
@@ -313,237 +299,5 @@ df_export.to_csv("public/dataset/got_full_scores.csv", index=False, float_format
 
 print("Zweite CSV-Datei mit Wahrscheinlichkeiten gespeichert unter: public/dataset/got_full_scores.csv")
 
-# ================================================
-# STEP 7: FEATURE IMPORTANCE VISUALISIERUNG: Welche Merkmale sind wichtig?
-# ================================================
-# Wichtigkeiten der Merkmale berechnen
-importances = rf.feature_importances_
-feature_names = X.columns # gibt eine Liste von Zahlen, die zeigen: Wie wichtig jedes Feature für die Entscheidung im Random Forest war
-
-# In DataFrame umwandeln + sortieren
-importance_df = pd.DataFrame({
-    "Feature": feature_names,
-    "Importance": importances
-}).sort_values("Importance", ascending=False)
-
-# Visualisieren – die Top 20 Features
-plt.figure(figsize=(10, 6))
-sns.barplot(data=importance_df.head(20), x="Importance", y="Feature")
-plt.title("Wichtigste Merkmale (Top 20)")
-plt.xlabel("Wichtigkeit")
-plt.ylabel("Merkmal")
-plt.tight_layout()
-save_plot("feature_importance.png")  # Speicherung in public/pictures
-
-plt.show()  # Anzeige im Notebook/Fenster
-
-
-# ================================================
-# STEP 8: CONFUSION MATRIX HEATMAP: Wie oft lag Modell richtig/falsch?
-# ================================================
-cm = confusion_matrix(y_test, y_pred) # eine 2×2-Matrix
-
-# Heatmap anzeigen
-sns.heatmap(cm, annot=True, fmt='d', cmap="Blues", xticklabels=["Tot", "Lebt"], yticklabels=["Tot", "Lebt"])
-plt.xlabel("Vorhergesagt")
-plt.ylabel("Tatsächlich")
-plt.title("Confusion Matrix als Heatmap")
-plt.tight_layout()
-save_plot("heatmap.png")
-
-plt.show()
-
-# ROC-Daten berechnen
-fpr, tpr, _ = roc_curve(y_test, probs[:, 1])
-roc_auc = auc(fpr, tpr)
-
-# ROC-Kurve zeichnen
-plt.figure(figsize=(6, 6))
-plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
-plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC-Kurve – Modellbewertung")
-plt.legend(loc="lower right")
-plt.tight_layout()
-save_plot("roc.png")
-
-plt.show()
-
-from sklearn.decomposition import PCA # Hauptkomponentenanalyse – reduziert die Daten auf wenige Achsen 
-from sklearn.cluster import KMeans # Clustering-Methode – gruppiert ähnliche Objekte automatisch
-
-# Datenreduktion auf 2D für die Visualisierung
-X_pca = PCA(n_components=2).fit_transform(X)
-
-# Figuren gruppieren mit KMeans
-kmeans = KMeans(n_clusters=3).fit(X)
-
-# Zeichnet ein Punktdiagramm
-plt.scatter(X_pca[:,0], X_pca[:,1], c=kmeans.labels_, cmap="Set2")
-plt.title("Charaktertypen (Cluster)")
-plt.tight_layout()
-save_plot("cluster.png")
-
-plt.show()
-
-
-
-# ================================================
-# STEP 9: DECISION TREE: Wie trifft das Modell Entscheidungen? 
-# ================================================
-
-from sklearn.tree import export_graphviz
-from sklearn.tree import plot_tree
-import matplotlib.pyplot as plt
-
-# Einen der Bäume im Random Forest nehmen
-tree = rf.estimators_[0]  # z.B. der erste Baum
-
-# Plot mit sklearn
-plt.figure(figsize=(20, 10))
-plot_tree(tree,
-          feature_names=X.columns,
-          class_names=["Tot", "Lebt"],
-          filled=True,
-          max_depth=3,  # Optional: Begrenzung für bessere Übersicht
-          fontsize=10)
-plt.title("Beispielbaum aus dem Random Forest")
-plt.tight_layout()
-save_plot("random_forest1.png")
-
-plt.show()
-
-
-# Feature-Korrelationen
-plt.figure(figsize=(12, 10))
-sns.heatmap(X.corr(), cmap="coolwarm", center=0)
-plt.title("Korrelation zwischen Features")
-plt.tight_layout()
-save_plot("feature-korrelationen.png")
-
-plt.show()
-
-
-importance_df["cumulative"] = importance_df["Importance"].cumsum()
-plt.plot(range(len(importance_df)), importance_df["cumulative"])
-plt.title("Kumulative Feature-Wichtigkeit")
-plt.xlabel("Top-N Features")
-plt.ylabel("Kumulierte Bedeutung")
-plt.grid(True)
-plt.tight_layout()
-save_plot("kumulative-feature-wichtigkeit.png")
-
-plt.show()
-
-
-from sklearn.inspection import PartialDependenceDisplay
-PartialDependenceDisplay.from_estimator(rf, X, ["age", "numDeadRelations"])
-plt.tight_layout()
-save_plot("partial_dependence.png")
-
-plt.show()
-
-
-for i in range(3):
-    plt.figure(figsize=(20, 10))
-    plot_tree(rf.estimators_[i], feature_names=X.columns, class_names=["Tot", "Lebt"], max_depth=3, filled=True)
-    plt.title(f"Baum {i+1}")
-    plt.tight_layout()
-    save_plot("tree1.png")
-
-    plt.show()
-
-
-sns.histplot(probs[:, 1], bins=30, kde=True)
-plt.title("Verteilung der Überlebenswahrscheinlichkeiten")
-plt.xlabel("Überlebenswahrscheinlichkeit")
-plt.ylabel("Anzahl Figuren")
-plt.tight_layout()
-save_plot("survival_probability_hist.png")
-
-plt.show()
-
-
-from sklearn.manifold import TSNE
-X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
-plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y, cmap="coolwarm", alpha=0.7)
-plt.title("t-SNE Visualisierung: Tot vs. Lebendig")
-plt.tight_layout()
-save_plot("tsne_survival.png")
-
-plt.show()
-
-# Klassenverteilung visualisieren; wie viele leben/tot? Dataset unausgewogen?
-sns.countplot(x=y)
-plt.title("Verteilung: Überlebt vs. Gestorben")
-plt.xlabel("isAlive (1=lebt)")
-plt.ylabel("Anzahl Charaktere")
-plt.tight_layout()
-save_plot("klassenverteilung.png")
-
-plt.show()
-
-# Überlebensrate nach Merkmal: Überleben Männer eher als Frauen? Adelige eher als Nicht-Adelige?
-sns.barplot(x="male", y="isAlive", data=df)
-plt.title("Überlebensrate nach Geschlecht")
-plt.ylabel("Anteil lebendig")
-plt.tight_layout()
-save_plot("survival_by_gender.png")
-
-plt.show()
-
-
-sns.barplot(x="isNoble", y="isAlive", data=df)
-plt.title("Überlebensrate nach Adelig")
-plt.ylabel("Anteil adelig")
-plt.tight_layout()
-save_plot("survival_by_nobility.png")
-
-plt.show()
-
-sns.barplot(x="isMarried", y="isAlive", data=df)
-plt.title("Überlebensrate nach Heirat")
-plt.ylabel("Anteil verheiratet")
-plt.tight_layout()
-save_plot("survival_by_isMarried.png")
-
-plt.show()
-
-sns.barplot(x="has_dead_relatives", y="isAlive", data=df)
-plt.title("Überlebensrate nach Geschlecht")
-plt.ylabel("Anteil hat tote Verwandte")
-plt.tight_layout()
-save_plot("survival_has_dead_relatives.png")
-
-plt.show()
-
-# Überleben nach Alter: Gibt es eine Altersgruppe, die häufiger stirbt?
-sns.histplot(data=df, x="age", hue="isAlive", bins=30, kde=True, multiple="stack")
-plt.title("Alter vs. Überlebenswahrscheinlichkeit")
-plt.tight_layout()
-save_plot("survival_by_age.png")
-
-plt.show()
-
-# Überleben nach Haus (nur Top-Häuser): Gibt es Häuser, bei denen viele sterben?
-top_houses = df["house_grouped"].value_counts().nlargest(6).index
-sns.barplot(data=df[df["house_grouped"].isin(top_houses)],
-            x="house_grouped", y="isAlive")
-plt.title("Überleben pro Haus")
-plt.xlabel("Haus")
-plt.ylabel("Anteil überlebt")
-plt.tight_layout()
-save_plot("survival_by_house.png")
-
-plt.show()
-
-# Buch-Einführung vs. Überleben: Wer spät eingeführt wurde – stirbt er eher?
-sns.boxplot(x="isAlive", y="book_intro_chapter", data=df)
-plt.title("Einführungskapitel vs. Überleben")
-plt.tight_layout()
-save_plot("intro_chapter_vs_survival.png")
-
-plt.show()
-
+generate_all_plots(df, X, y, rf, X_test, y_test, y_pred, probs)
 
