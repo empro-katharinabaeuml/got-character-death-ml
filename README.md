@@ -104,6 +104,14 @@ Wichtigste Einflussmerkmale
 
 ![Confusion](public/pictures/heatmap.png)
 
+#### Kalibrierung des Modells
+
+![Kalibrierung](public/pictures/calibration_curve.png)
+
+#### Partial Dependence Plot (PDP)
+
+![partial_dependence](public/pictures/partial_dependence.png)
+
 ### 4. `app.py` – Interaktive Vorhersage-App (Streamlit)
 
 Ein vollständiges Streamlit-Dashboard mit:
