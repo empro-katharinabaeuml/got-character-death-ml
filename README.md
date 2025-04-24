@@ -29,7 +29,7 @@ Trainiert ein Random-Forest-Modell zur Vorhersage der Zielvariable isAlive und a
 python3 main.py
 ```
 
-## Voraussetzungen
+#### Voraussetzungen
 
 Installiere die benötigten Python-Bibliotheken:
 
@@ -37,7 +37,7 @@ Installiere die benötigten Python-Bibliotheken:
 pip install pandas scikit-learn matplotlib seaborn imbalanced-learn shap
 ```
 
-## Feature Engineering (Auswahl)
+#### Feature Engineering (Auswahl)
 
 - Lebende Angehörige (`alive_family`)
 - Buchauftritte (`book1` bis `book5`)
@@ -46,14 +46,14 @@ pip install pandas scikit-learn matplotlib seaborn imbalanced-learn shap
 - Zeitpunkt des ersten Auftritts (`introduced_late`)
 - Historie toter Verwandter (`has_dead_relatives`, `many_dead_relatives`)
 
-## Modell & Bewertung
+#### Modell & Bewertung
 
 - **Modell**: `RandomForestClassifier` mit Hyperparameter-Optimierung via `GridSearchCV`
 - **Datenungleichgewicht**: ausgeglichen mit SMOTE
 - **Metrik**: ROC-AUC
 - **Bewertung**: Confusion Matrix, Klassifikationsbericht, ROC-Kurve, SHAP-Analyse
 
-### Beispielausgabe:
+#### Beispielausgabe:
 
 ```text
 Beste Parameterkombination:
@@ -63,22 +63,7 @@ Beste AUC-Score:
 0.975
 ```
 
-## Ergebnis-Visualisierungen
-
-### Wichtigste Merkmale
-
-Am Anfang werden die wichtigsten Merkmale visualisiert, die das Modell für Entscheidungen verwendet hat.
-![Features](public/pictures/feature_importance.png)
-
-### ROC-Kurve
-
-![ROC-Kurve](public/pictures/roc.png)
-
-### Confusion Matrix
-
-![Confusion](public/pictures/heatmap.png)
-
-### Ausgabe-Dateien
+#### Ausgabe-Dateien
 
 Nach dem Training wird eine CSV gespeichert:
 
@@ -92,7 +77,34 @@ Diese enthält:
 - Wahrscheinlichkeiten für Leben/Tod
 - Vorhersage & tatsächlicher Zustand
 
-### 3. `app.py` – Interaktive Vorhersage-App (Streamlit)
+### 3. `visualizations.py` – Grafikerstellung
+
+Generiert automatisch alle Modellgrafiken:
+
+- Feature Importance
+- ROC-Kurve
+- - Confusion Matrix
+- SHAP & PDP
+- Korrelationen, Histogramme, Cluster etc.
+
+```bash
+pip python visualizations.py
+```
+
+#### Wichtigste Merkmale
+
+Wichtigste Einflussmerkmale
+![Features](public/pictures/feature_importance.png)
+
+#### ROC-Kurve
+
+![ROC-Kurve](public/pictures/roc.png)
+
+#### Confusion Matrix
+
+![Confusion](public/pictures/heatmap.png)
+
+### 4. `app.py` – Interaktive Vorhersage-App (Streamlit)
 
 Ein vollständiges Streamlit-Dashboard mit:
 
@@ -100,6 +112,8 @@ Ein vollständiges Streamlit-Dashboard mit:
 - Navigation via Sidebar oder Bildklick
 - Modell-Vorhersage mit interaktiver Eingabe
 - Feature-Analyse und Kontext-Interpretationen
+
+![Dashboard](public/pictures/dashboard.png)
 
 Start per Terminal:
 
